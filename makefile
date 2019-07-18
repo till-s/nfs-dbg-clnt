@@ -1,8 +1,10 @@
 all: mount_clnt_ex
 
-CFLAGS+= -O2
+CFLAGS+= -O2 -g
+LDFLAGS+= -g
 
 mount_prot_clnt.o: mount_prot_clnt.c proto/mount_prot.h
+mount_clnt_ex.o: proto/mount_prot.h
 
 mount_clnt_ex: mount_clnt_ex.o mount_prot_clnt.o mount_prot_xdr.o
 
