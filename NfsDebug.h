@@ -76,6 +76,9 @@ public:
 	virtual uint32_t getNfsXid();
 	virtual void     setNfsXid(uint32_t xid);
 
+	virtual void     rm(diropargs *arg);
+
+	virtual int      creat(diropargs *arg, nfs_fh *newfh = 0, sattr *attrs = 0);
 
 	virtual ~NfsDebug();
 };

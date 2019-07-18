@@ -21,13 +21,15 @@ cdef extern from "NfsDebug.h":
     p_nfs_fh *get()
   cdef cppclass c_NfsDebug "NfsDebug":
     c_NfsDebug(const char *, const char *, unsigned short) except+
-    void dumpMounts()
-    int  lkup(diropargs *)
-    int  read(p_nfs_fh*, unsigned int off, unsigned int count, void *buf);
-    void getFH(p_nfs_fh*)
+    void     dumpMounts()
+    int      lkup(diropargs *)
+    int      read(p_nfs_fh*, unsigned int off, unsigned int count, void *buf);
+    void     getFH(p_nfs_fh*)
     const p_nfs_fh* root()
     uint32_t getNfsXid()
     void     setNfsXid(uint32_t)
+    void     rm(diropargs *)
+    int      creat(diropargs *, p_nfs_fh *)
 
 cdef class FH:
   cdef c_FH *fh_
@@ -51,6 +53,9 @@ cdef class NfsDebug:
     cdef bytes hostb = host.encode('ascii')
     cdef bytes expb  = exp.encode('ascii')
     self.nfsDbg_ = new c_NfsDebug( hostb, expb, nfsLocPort )
+
+  def __dealloc__(self):
+    del self.nfsDbg_
 
   def dumpMounts(self):
     self.nfsDbg_.dumpMounts()
@@ -80,5 +85,19 @@ cdef class NfsDebug:
   def setNfsXid(self, unsigned int xid):
     self.nfsDbg_.setNfsXid( xid )
 
-  def __dealloc__(self):
-    del self.nfsDbg_
+  def rm(self, FH hdl, str name):
+    cdef diropargs arg
+    cdef bytes     b = name.encode('ascii')
+    hdl.fh_.set( &arg )
+    arg.name         = b
+    self.nfsDbg_.rm( &arg )
+
+  def creat(self, FH hdl, str name):
+    cdef diropargs arg
+    cdef p_nfs_fh  fh
+    cdef bytes     b = name.encode('ascii')
+    hdl.fh_.set( &arg )
+    arg.name         = b
+    if 0 != self.nfsDbg_.creat( &arg, &fh ):
+      raise RuntimeError("Unable to create '{}'".format(name) )
+    return createFH( &fh )

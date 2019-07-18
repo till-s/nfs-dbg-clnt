@@ -3,6 +3,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/time.h>
 #include <errno.h>
 #include <stdio.h>
 
@@ -43,10 +45,13 @@ struct sockaddr_in srv;
 		clnt_pcreateerror( inet_ntoa( srv.sin_addr ) );
 		throw "Unable to create client";
 	}
+
+	c_->cl_auth = authunix_create_default();
 }
 
 Clnt::~Clnt()
 {
+	auth_destroy( c_->cl_auth );
 	clnt_destroy( c_ );
 	if ( s_ >= 0 ) {
 		close( s_ );
@@ -215,4 +220,58 @@ unsigned long tmp = xid;
 	if ( ! clnt_control( nfsClnt_.get(), CLSET_XID, (caddr_t)&tmp ) ) {
 		fprintf( stderr, "clnt_control(CLSET_XID) failed" );
 	}
+}
+
+void
+NfsDebug::rm(diropargs *arg)
+{
+nfsstat *res;
+
+	res = nfsproc_remove_2( arg, nfsClnt_.get() );
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_remove call failed" );
+		return;
+	}
+	if ( *res ) {
+		fprintf( stderr, "nfsproc_remove returned error: %s\n", strerror( *res ) );
+	}
+}
+	
+int
+NfsDebug::creat(diropargs *where, nfs_fh *newfh, sattr *attrs)
+{
+createargs     arg;
+struct timeval now;
+nfstime        nfsnow;
+diropres      *res;
+
+	arg.where = *where;
+	if ( attrs ) {
+		arg.attributes = *attrs;
+	} else {
+		gettimeofday( &now, 0 );
+		memset      ( &arg.attributes, 0, sizeof( arg.attributes ) );
+		nfsnow.seconds       = now.tv_sec;
+		nfsnow.useconds      = now.tv_usec;
+		arg.attributes.mode  = 0664; 
+		arg.attributes.uid   = getuid();
+		arg.attributes.gid   = getgid();
+        arg.attributes.size  = 0;
+        arg.attributes.atime = nfsnow;
+        arg.attributes.mtime = nfsnow;
+	}
+
+	res = nfsproc_create_2( &arg, nfsClnt_.get() );
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_create call failed" );
+		return -1;
+	}
+	if ( res->status ) {
+		fprintf( stderr, "nfsproc_create failed; error: %s\n", strerror( res->status ) );
+		return res->status;
+	}
+	if ( newfh ) {
+		memcpy( newfh, &res->diropres_u.diropres.file, sizeof( *newfh ) );
+	}
+	return 0;
 }
