@@ -33,7 +33,7 @@ proto/%_prot.h: proto/%_prot.x
 PyNfsDebug.cc: PyNfsDebug.pyx NfsDebug.h
 	cython3 --cplus $< -o $@
 
-PyNfsDebug.so: PyNfsDebug-pic.o NfsDebug-pic.o mount_prot_clnt-pic.o mount_prot_xdr-pic.o
+PyNfsDebug.so: PyNfsDebug-pic.o NfsDebug-pic.o mount_prot_clnt-pic.o mount_prot_xdr-pic.o nfs_prot_clnt-pic.o nfs_prot_xdr-pic.o
 	$(CXX) -shared -o$@ $^
 
 clean:

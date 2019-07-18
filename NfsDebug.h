@@ -8,6 +8,24 @@
 
 using std::string;
 
+class FH : public nfs_fh {
+public:
+	FH(const nfs_fh *pfh)
+    : nfs_fh( *pfh )
+	{
+	}
+
+	void set(diropargs *ap)
+	{
+		ap->dir = *this;
+	}
+
+	nfs_fh *get()
+	{
+		return this;
+	}
+};
+
 class Clnt {
 private:
 	CLIENT *c_;
@@ -39,12 +57,20 @@ private:
 	Clnt    mntClnt_;
 	Clnt    nfsClnt_;
 	Name    m_;
-	fhandle f_;
+	nfs_fh  f_;
+
+private:
+	virtual int  lkup1(diropargs *arg);
 
 public:
 	NfsDebug(const char *srv, const char *mnt, unsigned short locNfsPort = 0);
 
+	virtual int  lkup(diropargs *arg);
 	virtual void dumpMounts();
+
+	virtual int  read(nfs_fh *fh, u_int off, u_int count, void *buf = 0);
+
+	virtual const nfs_fh *root() { return &f_; }
 
 	virtual ~NfsDebug();
 };
