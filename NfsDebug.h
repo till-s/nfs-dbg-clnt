@@ -5,6 +5,7 @@
 #include <rpc/rpc.h>
 #include <string>
 #include <string.h>
+#include <stdint.h>
 
 using std::string;
 
@@ -71,6 +72,10 @@ public:
 	virtual int  read(nfs_fh *fh, u_int off, u_int count, void *buf = 0);
 
 	virtual const nfs_fh *root() { return &f_; }
+
+	virtual uint32_t getNfsXid();
+	virtual void     setNfsXid(uint32_t xid);
+
 
 	virtual ~NfsDebug();
 };

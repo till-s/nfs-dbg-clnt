@@ -4,6 +4,7 @@
 
 from cython.view cimport array as cvarray
 from libc.string cimport memcpy
+from libc.stdint cimport uint32_t
 
 cdef extern from "proto/nfs_prot.h":
   ctypedef nfs_fh
@@ -25,6 +26,8 @@ cdef extern from "NfsDebug.h":
     int  read(p_nfs_fh*, unsigned int off, unsigned int count, void *buf);
     void getFH(p_nfs_fh*)
     const p_nfs_fh* root()
+    uint32_t getNfsXid()
+    void     setNfsXid(uint32_t)
 
 cdef class FH:
   cdef c_FH *fh_
@@ -70,6 +73,12 @@ cdef class NfsDebug:
       return buf
     else:
       raise RuntimeError("Read Failure")
+
+  def getNfsXid(self):
+    return self.nfsDbg_.getNfsXid()
+
+  def setNfsXid(self, unsigned int xid):
+    self.nfsDbg_.setNfsXid( xid )
 
   def __dealloc__(self):
     del self.nfsDbg_

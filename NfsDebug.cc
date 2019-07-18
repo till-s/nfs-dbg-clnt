@@ -194,3 +194,25 @@ void *res;
 	mountproc_umnt_1( &m_.name_, mntClnt_.get() );
 	fprintf( stderr, "Leaving NfsDebug destructor\n" );
 }
+
+uint32_t
+NfsDebug::getNfsXid()
+{
+uint32_t      rval;
+unsigned long tmp;
+	if ( ! clnt_control( nfsClnt_.get(), CLGET_XID, (caddr_t)&tmp ) ) {
+		fprintf( stderr, "clnt_control(CLGET_XID) failed" );
+		return 0;
+	}
+	rval = (uint32_t)tmp;
+	return rval;
+}
+
+void
+NfsDebug::setNfsXid(uint32_t xid)
+{
+unsigned long tmp = xid;
+	if ( ! clnt_control( nfsClnt_.get(), CLSET_XID, (caddr_t)&tmp ) ) {
+		fprintf( stderr, "clnt_control(CLSET_XID) failed" );
+	}
+}
