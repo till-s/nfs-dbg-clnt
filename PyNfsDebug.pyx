@@ -1,35 +1,29 @@
-#
-
-### cython: c_string_type=str, c_string_encoding=ascii
-
-from cython.view cimport array as cvarray
 from libc.string cimport memcpy
 from libc.stdint cimport uint32_t
 
 cdef extern from "proto/nfs_prot.h":
-  ctypedef nfs_fh
-  cdef struct p_nfs_fh "nfs_fh":
+  cdef struct nfs_fh:
     unsigned char data[32]
   cdef struct diropargs:
-    p_nfs_fh dir
+    nfs_fh dir
     char   * name
 
 cdef extern from "NfsDebug.h":
   cdef cppclass c_FH "FH":
-    c_FH(p_nfs_fh*)
+    c_FH(nfs_fh*)
     void set(diropargs*)
-    p_nfs_fh *get()
+    nfs_fh *get()
   cdef cppclass c_NfsDebug "NfsDebug":
     c_NfsDebug(const char *, const char *, unsigned short) except+
     void     dumpMounts()
     int      lkup(diropargs *)
-    int      read(p_nfs_fh*, unsigned int off, unsigned int count, void *buf);
-    void     getFH(p_nfs_fh*)
-    const p_nfs_fh* root()
+    int      read(nfs_fh*, unsigned int off, unsigned int count, void *buf);
+    void     getFH(nfs_fh*)
+    const nfs_fh* root()
     uint32_t getNfsXid()
     void     setNfsXid(uint32_t)
     void     rm(diropargs *)
-    int      creat(diropargs *, p_nfs_fh *)
+    int      creat(diropargs *, nfs_fh *)
 
 cdef class FH:
   cdef c_FH *fh_
@@ -40,7 +34,7 @@ cdef class FH:
   def dealloc(self):
     del self.fh_
 
-cdef object createFH(const p_nfs_fh *fh):
+cdef object createFH(const nfs_fh *fh):
   rval = FH()
   rval.fh_ = new c_FH( fh )
   return rval
@@ -94,7 +88,7 @@ cdef class NfsDebug:
 
   def creat(self, FH hdl, str name):
     cdef diropargs arg
-    cdef p_nfs_fh  fh
+    cdef nfs_fh    fh
     cdef bytes     b = name.encode('ascii')
     hdl.fh_.set( &arg )
     arg.name         = b
