@@ -10,7 +10,10 @@ nfs_prot_clnt.o: nfs_prot_clnt.c proto/nfs_prot.h
 mount_clnt_ex.o: proto/mount_prot.h
 mount_clnt_ex: mount_clnt_ex.o mount_prot_clnt.o mount_prot_xdr.o
 
-NfsDebug.o: proto/mount_prot.h proto/nfs_prot.h
+%.o: proto/mount_prot.h proto/nfs_prot.h
+
+%-pic.o: proto/mount_prot.h proto/nfs_prot.h
+
 
 proto/%_prot.h: proto/%_prot.x
 	rpcgen -h $< >$@
@@ -21,11 +24,11 @@ proto/%_prot.h: proto/%_prot.x
 %_prot_xdr.c: proto/%_prot.x
 	rpcgen -c $< >$@
 
-%-pic.o: %.c
-	$(CC) -fPIC $(CPPFLAGS) $(CFLAGS) -c $^ -o $@
+%-pic.o: %.c proto/mount_prot.h proto/nfs_prot.h
+	$(CC) -fPIC $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
-%-pic.o: %.cc
-	$(CXX) -fPIC $(CPPFLAGS) $(CFLAGS) -c $^ -o $@
+%-pic.o: %.cc proto/mount_prot.h proto/nfs_prot.h
+	$(CXX) -fPIC $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 PyNfsDebug.cc: PyNfsDebug.pyx NfsDebug.h
 	cython3 --cplus $< -o $@
