@@ -17,7 +17,8 @@ cdef extern from "NfsDebug.h":
     c_NfsDebug(const char *, const char *, unsigned short) except+
     void     dumpMounts()
     int      lkup(diropargs *)
-    int      read(nfs_fh*, unsigned int off, unsigned int count, void *buf);
+    int      read (nfs_fh*, unsigned int off, unsigned int count, void *buf);
+    int      write(nfs_fh*, unsigned int off, unsigned int count, void *buf);
     void     getFH(nfs_fh*)
     const nfs_fh* root()
     uint32_t getNfsXid()
@@ -65,13 +66,23 @@ cdef class NfsDebug:
   def root(self):
     return createFH( self.nfsDbg_.root() )
 
-  def read(self, FH hdl, unsigned int off, unsigned int count):
+  def read(self, FH hdl, unsigned int count, unsigned int off = 0):
     buf = bytearray(count)
     cdef char *bufp = buf
-    if self.nfsDbg_.read( hdl.fh_.get(), off, count, bufp ) >= 0:
+    got = self.nfsDbg_.read( hdl.fh_.get(), off, count, bufp )
+    if got >= 0:
+      del buf[got:]
       return buf
     else:
       raise RuntimeError("Read Failure")
+
+  def write(self, FH hdl, bytearray buf, unsigned int off = 0):
+    cdef char *bufp = buf
+    put = self.nfsDbg_.write( hdl.fh_.get(), off, len(buf), bufp )
+    if put < 0:
+      raise RuntimeError("Write Failure")
+    return put
+
 
   def getNfsXid(self):
     return self.nfsDbg_.getNfsXid()

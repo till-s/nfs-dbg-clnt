@@ -69,7 +69,8 @@ public:
 	virtual int  lkup(diropargs *arg);
 	virtual void dumpMounts();
 
-	virtual int  read(nfs_fh *fh, u_int off, u_int count, void *buf = 0);
+	virtual int  read (nfs_fh *fh, u_int off, u_int count, void *buf = 0);
+	virtual int  write(nfs_fh *fh, u_int off, u_int count, void *buf);
 
 	virtual const nfs_fh *root() { return &f_; }
 

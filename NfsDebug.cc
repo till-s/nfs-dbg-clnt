@@ -163,6 +163,7 @@ struct timeval tout;
 	if ( ! res.status ) {
 		rval = res.readres_u.reply.data.data_len;
 	} else {
+		fprintf( stderr, "nfsproc_read returned error: %s\n", strerror( res.status ) );
 		rval = -res.status;
 	}
 
@@ -173,6 +174,33 @@ struct timeval tout;
 		
 
 	
+}
+
+int
+NfsDebug::write(nfs_fh *fh, u_int off, u_int count, void *buf)
+{
+writeargs arg;
+attrstat *res;
+
+	arg.file          = *fh;
+	arg.beginoffset   = 0; //ignored
+	arg.offset        = off;
+	arg.totalcount    = 0;
+	arg.data.data_val = (caddr_t)buf;
+	arg.data.data_len = count;
+
+
+	res = nfsproc_write_2( &arg, nfsClnt_.get() );
+
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_write call failed" );
+		return -2;
+	}
+	if ( res->status ) {
+		fprintf( stderr, "nfsproc_write returned error: %s\n", strerror( res->status ) );
+		return -res->status;
+	}
+	return res->attrstat_u.attributes.size;
 }
 
 void
