@@ -4,8 +4,25 @@ CFLAGS+= -O2 -g
 LDFLAGS+= -g
 CPPFLAGS+= -I/usr/include/python3.6m
 
-mount_prot_clnt.o: mount_prot_clnt.c proto/mount_prot.h
-nfs_prot_clnt.o: nfs_prot_clnt.c proto/nfs_prot.h
+MNT_GEN_SRCS = mount_prot_clnt.c proto/mount_prot.h mount_prot_xdr.c
+NFS_GEN_SRCS = nfs_prot_clnt.c   proto/nfs_prot.h nfs_prot_xdr.c
+PY_GEN_SRCS  = PyNfsDebug.cc
+
+GEN_SRCS+=$(MNT_GEN_SRCS)
+GEN_SRCS+=$(NFS_GEN_SRCS)
+GEN_SRCS+=$(PY_GEN_SRCS)
+
+SRCS+=NfsDebug.h
+SRCS+=NfsDebug.cc
+SRCS+=$(GEN_SRCS)
+
+PROTS+=proto/mount_prot.x
+PROTS+=proto/nfs_prot.x
+
+PYXS+=PyNfsDebug.pyx
+
+mount_prot_clnt.o: $(MNT_GEN_SRCS)
+nfs_prot_clnt.o:   $(NFS_GEN_SRCS)
 
 mount_clnt_ex.o: proto/mount_prot.h
 mount_clnt_ex: mount_clnt_ex.o mount_prot_clnt.o mount_prot_xdr.o
@@ -35,6 +52,8 @@ PyNfsDebug.cc: PyNfsDebug.pyx NfsDebug.h
 
 PyNfsDebug.so: PyNfsDebug-pic.o NfsDebug-pic.o mount_prot_clnt-pic.o mount_prot_xdr-pic.o nfs_prot_clnt-pic.o nfs_prot_xdr-pic.o
 	$(CXX) -shared -o$@ $^
+
+dist: $(SRCS) $(PROTS) $(PYXS)
 
 clean:
 	$(RM) proto/mount_prot.h mount_prot_clnt.c mount_prot_xdr.c
