@@ -1,4 +1,7 @@
-all: mount_clnt_ex PyNfsDebug.so
+all: $(TGTS)
+
+TGTS += mount_clnt_ex
+TGTS += $(if,$(PYINCDIR),PyNfsDebug.so)
 
 PYINCDIR=/usr/include/python3.6m
 
