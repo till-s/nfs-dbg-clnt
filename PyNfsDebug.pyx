@@ -4,15 +4,26 @@ from libc.stdint cimport uint32_t
 cdef extern from "proto/nfs_prot.h":
   cdef struct nfs_fh:
     unsigned char data[32]
+  cdef struct nfscookie:
+    unsigned char data[4]
   cdef struct diropargs:
     nfs_fh dir
     char   * name
+  cdef struct entry:
+    unsigned int fileid
+    char        *name
+    nfscookie    cookie
+    entry       *nextentry
 
 cdef extern from "NfsDebug.h":
   cdef cppclass c_FH "FH":
     c_FH(nfs_fh*)
     void set(diropargs*)
     nfs_fh *get()
+  cdef cppclass c_DH "DH":
+    c_DH(nfscookie *)
+    c_DH()
+    nfscookie *get()
   cdef cppclass c_NfsDebug "NfsDebug":
     c_NfsDebug(const char *, const char *, unsigned short) except+
     void     dumpMounts()
@@ -25,6 +36,8 @@ cdef extern from "NfsDebug.h":
     void     setNfsXid(uint32_t)
     void     rm(diropargs *)
     int      creat(diropargs *, nfs_fh *)
+    entry   *ls(nfs_fh *, unsigned count, nfscookie *cp)
+  cdef void FreeEntry(entry*)
 
 cdef class FH:
   cdef c_FH *fh_
@@ -106,3 +119,26 @@ cdef class NfsDebug:
     if 0 != self.nfsDbg_.creat( &arg, &fh ):
       raise RuntimeError("Unable to create '{}'".format(name) )
     return createFH( &fh )
+
+  def ls(self, FH hdl):
+    cdef diropargs arg
+    cdef entry    *res
+    cdef entry    *ep
+    cdef entry    *pp
+    cdef c_DH      dh
+    l = []
+    hdl.fh_.set( &arg )
+    while True:
+      res = self.nfsDbg_.ls( &arg.dir, 1024, dh.get() )
+      if not res:
+        return l
+      ep  = res
+      # since res is non-NULL, ep is non-NULL here
+      # and pp is always set (and non-NULL)
+      while ep:
+        pp = ep
+        l.append( ep.name.decode('ascii') )
+        ep = pp.nextentry
+      dh = c_DH( &pp.cookie )
+      FreeEntry( res )
+

@@ -9,10 +9,27 @@
 
 using std::string;
 
-class FH : public nfs_fh {
+template <typename B> class StructWrap : public B {
+public:
+	StructWrap(const B *bp)
+	: B( *bp )
+	{
+	}
+
+	StructWrap()
+	{
+	}
+
+	B *get()
+	{
+		return this;
+	}
+};
+
+class FH : public StructWrap<nfs_fh> {
 public:
 	FH(const nfs_fh *pfh)
-    : nfs_fh( *pfh )
+    : StructWrap<nfs_fh>( pfh )
 	{
 	}
 
@@ -20,10 +37,18 @@ public:
 	{
 		ap->dir = *this;
 	}
+};
 
-	nfs_fh *get()
+class DH : public StructWrap<nfscookie> {
+public:
+	DH(const nfscookie *c)
+	: StructWrap<nfscookie>( c )
 	{
-		return this;
+	}
+
+	DH()
+	{
+		memset( data, 0, sizeof(data) );
 	}
 };
 
@@ -81,6 +106,11 @@ public:
 
 	virtual int      creat(diropargs *arg, nfs_fh *newfh = 0, sattr *attrs = 0);
 
+	// returned dirlist must be xdr_free'ed!
+	virtual entry   *ls(nfs_fh *fh, unsigned count = 1000, nfscookie *poscookie = 0);
+
 	virtual ~NfsDebug();
 };
+
+void FreeEntry(entry *);
 #endif

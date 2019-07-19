@@ -12,3 +12,5 @@ if got != msg[2:]:
   print("Readback failed; expected '{}', got '{}'".format(msg[2:], got))
 else:
   c.rm(c.root(),"nexist")
+for n in c.ls(c.root()):
+  print(n)

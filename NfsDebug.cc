@@ -338,3 +338,35 @@ diropres      *res;
 	}
 	return 0;
 }
+
+entry *
+NfsDebug::ls(nfs_fh *fh, unsigned count, nfscookie *poscookie)
+{
+readdirargs arg;
+readdirres *res;
+	arg.dir = *fh;
+	if ( poscookie ) {
+		arg.cookie = *poscookie;
+	} else {
+		memset( &arg.cookie, 0, sizeof( arg.cookie ) );
+	}
+	arg.count = count;
+	res = nfsproc_readdir_2( &arg, nfsClnt_.get() );
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_readdir call failed" );
+		throw "nfsproc_readdir call failed";
+	}
+	if ( res->status ) {
+		fprintf( stderr, "nfsproc_readdir failed; error: %s\n", strerror( res->status ) );
+		throw "nfsproc_readdir failed with error";
+	}
+	if ( res->readdirres_u.reply.eof ) {
+		printf( "EOF, %p\n", res->readdirres_u.reply.entries );
+	}
+	return res->readdirres_u.reply.entries;
+}
+
+void FreeEntry(entry *e)
+{
+	xdr_free( (xdrproc_t)xdr_entry, (caddr_t)e );
+}
