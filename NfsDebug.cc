@@ -15,12 +15,47 @@ struct timeval wai;
 int            sd = RPC_ANYSOCK;
 struct sockaddr_in me;
 struct sockaddr_in srv;
+const  char   *at, *host;
+unsigned       uid, gid;
+char           myname[256];
 
 	wai.tv_sec  = 2;
 	wai.tv_usec = 0;
 
+	host = (at = ::strchr( srvn, '@' )) ? at + 1 : srvn;
+
+	uid = getuid();
+	gid = getgid();
+
+	if ( gethostname( myname, sizeof(myname) ) ) {
+		perror("gethostname failed");
+		throw "gethostname failed";
+	}
+
+	if ( at ) {
+		switch ( sscanf( srvn, "%d.%d@", &uid, &gid ) ) {
+			case 2:
+			case 1:
+				break;
+			default:
+				switch ( sscanf( srvn, ".%d@", &gid ) ) {
+					case '1':
+						break;
+					case '0':
+						if ( at == srvn ) {
+							break;
+						}
+						/* else fall through */
+					default:
+						fprintf( stderr, "Unable to parse server arg; expected: [[<uid>]['.'<gid>]'@']<host_ip>\n" );
+						throw "Unable to parse server arg";
+				}
+				break;
+		}
+	}
+
 	srv.sin_family      = AF_INET;
-	srv.sin_addr.s_addr = inet_addr( srvn );
+	srv.sin_addr.s_addr = inet_addr( host );
 	srv.sin_port        = htons( 0 );
 
 	if ( locPort ) {
@@ -46,7 +81,7 @@ struct sockaddr_in srv;
 		throw "Unable to create client";
 	}
 
-	c_->cl_auth = authunix_create_default();
+	c_->cl_auth = authunix_create( myname, uid, gid, 0, 0 );
 }
 
 Clnt::~Clnt()
