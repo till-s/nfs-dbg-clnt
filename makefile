@@ -1,8 +1,10 @@
 all: mount_clnt_ex PyNfsDebug.so
 
+PYINCDIR=/usr/include/python3.6m
+
 CFLAGS+= -O2 -g
 LDFLAGS+= -g
-CPPFLAGS+= -I/usr/include/python3.6m
+CPPFLAGS+= $(addprefix -I,$(PYINCDIR))
 
 MNT_GEN_SRCS = mount_prot_clnt.c proto/mount_prot.h mount_prot_xdr.c
 NFS_GEN_SRCS = nfs_prot_clnt.c   proto/nfs_prot.h nfs_prot_xdr.c
@@ -62,3 +64,5 @@ clean:
 	$(RM) mount_clnt_ex
 	$(RM) PyNfsDebug.so
 	$(RM) PyNfsDebug.cc
+
+-include local.mak
