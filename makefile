@@ -3,10 +3,12 @@ PYINCDIR=/usr/include/python3.6m
 
 TGTS += mount_clnt_ex
 TGTS += $(if $(PYINCDIR),PyNfsDebug.so)
+TGTS += nfs_write_tst
 
 CFLAGS+= -O2 -g
 LDFLAGS+= -g
 CPPFLAGS+= $(addprefix -I,$(PYINCDIR) .)
+CPPFLAGS+= -DGITVERSION=\"$(shell git describe --always)\"
 
 CPP=$(CROSS)cpp
 CXX=$(CROSS)g++
@@ -55,6 +57,9 @@ mount_clnt_ex: mount_clnt_ex.o mount_prot_clnt.o mount_prot_xdr.o
 %.o: %.cc proto/mount_prot.h proto/nfs_prot.h
 	$(CXX) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
+nfs_write_tst: nfs_write_tst.o $(addsuffix .o,$(NFSOBJS))
+	$(CXX) $(LDFLAGS) $^ -o $@
+
 proto/%_prot.h: proto/%_prot.x
 	rpcgen -h $< >$@
 
@@ -82,8 +87,7 @@ clean:
 	$(RM) proto/mount_prot.h mount_prot_clnt.c mount_prot_xdr.c
 	$(RM) proto/nfs_prot.h nfs_prot_clnt.c nfs_prot_xdr.c
 	$(RM) *.o
-	$(RM) mount_clnt_ex
-	$(RM) PyNfsDebug.so
+	$(RM) $(TGTS)
 	$(RM) PyNfsDebug.cc
 
 
