@@ -8,21 +8,18 @@
 #include <errno.h>
 #include <stdio.h>
 
-Clnt::Clnt( const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort )
+Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort )
  : s_( -1 )
 {
 struct timeval wai;
 int            sd = RPC_ANYSOCK;
 struct sockaddr_in me;
 struct sockaddr_in srv;
-const  char   *at, *host;
 unsigned       uid, gid;
 char           myname[256];
 
 	wai.tv_sec  = 2;
 	wai.tv_usec = 0;
-
-	host = (at = ::strchr( srvn, '@' )) ? at + 1 : srvn;
 
 	uid = getuid();
 	gid = getgid();
@@ -32,20 +29,15 @@ char           myname[256];
 		throw "gethostname failed";
 	}
 
-	if ( at ) {
-		switch ( sscanf( srvn, "%d.%d@", &uid, &gid ) ) {
+	if ( cred ) {
+		switch ( sscanf( cred, "%d.%d", &uid, &gid ) ) {
 			case 2:
 			case 1:
 				break;
 			default:
-				switch ( sscanf( srvn, ".%d@", &gid ) ) {
+				switch ( sscanf( srvn, ".%d", &gid ) ) {
 					case '1':
 						break;
-					case '0':
-						if ( at == srvn ) {
-							break;
-						}
-						/* else fall through */
 					default:
 						fprintf( stderr, "Unable to parse server arg; expected: [[<uid>]['.'<gid>]'@']<host_ip>\n" );
 						throw "Unable to parse server arg";
@@ -55,7 +47,7 @@ char           myname[256];
 	}
 
 	srv.sin_family      = AF_INET;
-	srv.sin_addr.s_addr = inet_addr( host );
+	srv.sin_addr.s_addr = inet_addr( srvn );
 	srv.sin_port        = htons( 0 );
 
 	if ( locPort ) {
@@ -81,6 +73,8 @@ char           myname[256];
 		throw "Unable to create client";
 	}
 
+	printf("Creating credentials %u.%u\n", uid, gid );
+
 	c_->cl_auth = authunix_create( myname, uid, gid, 0, 0 );
 }
 
@@ -93,10 +87,10 @@ Clnt::~Clnt()
 	}
 }
 
-NfsDebug::NfsDebug(const char *host, const char *mnt, unsigned short locNfsPort)
- : mntClnt_( host, MOUNTPROG  , MOUNTVERS  , 0          ),
-   nfsClnt_( host, NFS_PROGRAM, NFS_VERSION, locNfsPort ),
-   m_      ( mnt                                        )
+NfsDebug::NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const  char *mntcred, unsigned short locMntPort)
+ : mntClnt_( mntcred, srv, MOUNTPROG  , MOUNTVERS  , locMntPort ),
+   nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort ),
+   m_      ( mnt                                                )
 {
 fhstatus *res;
 dirpath   exprt = m_.name_;
@@ -109,7 +103,7 @@ dirpath   exprt = m_.name_;
 	}
 
 	if ( res->fhs_status ) {
-		fprintf(stderr,"Unable to mount %s:%s -- %s\n", host, mnt, strerror( res->fhs_status ) );
+		fprintf(stderr,"Unable to mount %s%c%s:%s -- %s\n", mntcred ? mntcred : "", mntcred ? '@' : ' ', srv, mnt, strerror( res->fhs_status ) );
 		throw "Mount rejected";
 	}
 
@@ -152,17 +146,19 @@ int        st;
 		st = lkup1( arg );
 
 		*slp = ch;
-		arg->name = slp + 1;
 
 		if ( st ) {
 			goto bail;
 		}
+		arg->name = slp + 1;
 	}
 
-	st = lkup1( arg );
+	st = *arg->name ? lkup1( arg ) : 0;
+
+	if ( 0 == st )
+		arg->name = 0;
 
 bail:
-	arg->name = path;
 
 	return st;
 }

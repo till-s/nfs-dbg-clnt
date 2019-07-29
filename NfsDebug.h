@@ -57,7 +57,7 @@ private:
 	CLIENT *c_;
     int     s_;
 public:
-	Clnt( const char *srv, unsigned long prog, unsigned long vers, unsigned short locPort );
+	Clnt(const char *cred, const char *srv, unsigned long prog, unsigned long vers, unsigned short locPort );
 
 	CLIENT *get() { return c_; }
 
@@ -89,7 +89,7 @@ private:
 	virtual int  lkup1(diropargs *arg);
 
 public:
-	NfsDebug(const char *srv, const char *mnt, unsigned short locNfsPort = 0);
+	NfsDebug(const char *srv, const char *mnt, const char *nfscred = 0, unsigned short locNfsPort = 0, const char *mntcred = 0, unsigned short locMntPort = 0);
 
 	virtual int  lkup(diropargs *arg);
 	virtual void dumpMounts();
