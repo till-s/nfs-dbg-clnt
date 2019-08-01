@@ -25,7 +25,7 @@ cdef extern from "NfsDebug.h":
     c_DH()
     nfscookie *get()
   cdef cppclass c_NfsDebug "NfsDebug":
-    c_NfsDebug(const char *, const char *, unsigned short) except+
+    c_NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const char *mntcred, unsigned short locMntPort) except+;
     void     dumpMounts()
     int      lkup(diropargs *)
     int      read (nfs_fh*, unsigned int off, unsigned int count, void *buf);
@@ -60,7 +60,7 @@ cdef class NfsDebug:
   def __cinit__(self, str host, str exp, int nfsLocPort=0):
     cdef bytes hostb = host.encode('ascii')
     cdef bytes expb  = exp.encode('ascii')
-    self.nfsDbg_ = new c_NfsDebug( hostb, expb, nfsLocPort )
+    self.nfsDbg_ = new c_NfsDebug( hostb, expb, NULL, nfsLocPort, NULL, 0 )
 
   def __dealloc__(self):
     del self.nfsDbg_
