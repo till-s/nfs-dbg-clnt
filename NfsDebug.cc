@@ -19,6 +19,10 @@ struct sockaddr_in srv;
 unsigned       uid, gid;
 char           myname[256];
 
+    if ( ! srvn ) {
+        return;
+    }
+
 	wai.tv_sec  = 2;
 	wai.tv_usec = 0;
 
@@ -252,6 +256,10 @@ NfsDebug::dumpMounts()
 void *argdummy;
 mountlist   ml;
 mountlist  *res;
+
+    if ( ! mntClnt_.get() ) {
+        return;
+    }
 
 	res = mountproc_dump_1( (void*)&argdummy, mntClnt_.get() );
 	if ( ! res ) {

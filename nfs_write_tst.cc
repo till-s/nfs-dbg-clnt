@@ -1,6 +1,7 @@
 #include "NfsDebug.h"
 #include <getopt.h>
 #include <string.h>
+#include <stdio.h>
 
 #ifndef GITVERSION
 #error "Makefile should define GITVERSION by passing -D option"
@@ -30,9 +31,26 @@ public:
 	}
 };
 
+template <typename T>
+class PH {
+private:
+    T *p_;
+public:
+    PH(T *p) : p_( p ) {            }
+    PH()     : p_( 0 ) {            }
+    T *operator->()    { return p_; }
+    T *operator&()     { return p_; }
+    PH & operator=(T* p)
+    {
+        p_ = p;
+        return *this;
+    }
+    ~PH()              { delete p_; }
+};
+
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export | -R root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -46,6 +64,7 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -t            : Truncate file when writing\n" );
 	fprintf( stderr, "      -d            : Dump mounts (server info)\n" );
 	fprintf( stderr, "      -r            : Dump root handle\n" );
+	fprintf( stderr, "      -R fh_ascii   : Use root file-handle\n");
 	fprintf( stderr, "      message       : if given, written to filename (if -c present; ignored otherwise)\n" );
 }
 
@@ -83,13 +102,14 @@ unsigned       *u_p;
 int            opt;
 const char    *fnam    = 0;
 const char    *msg     = "HELLO\n";
+const char    *rootH   = 0;
 unsigned       xid     = 0;
 int            trunc   = 0;
 int            dumpM   = 0;
 int            dumpR   = 0;
 unsigned       u;
 
-	while ( (opt = getopt(argc, argv, "c:de:hM:m:N:n:rs:tvx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "c:de:hM:m:N:n:F:R:rs:tvx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -118,6 +138,8 @@ unsigned       u;
 			case 'd': dumpM = 1;        break;
 			case 'r': dumpR = 1;        break;
 
+			case 'R': rootH = optarg;   break;
+
 			case 'x': u_p = &xid;       break;
 
 			case 'v':
@@ -135,8 +157,8 @@ unsigned       u;
 		}
 	}
 
-	if ( ! srv || ! exp ) {
-		fprintf(stderr, "%s: need '-s' and '-e' options!\n", argv[0]);
+	if ( ! srv || (! exp && !rootH) ) {
+		fprintf(stderr, "%s: need '-s' and '-e' or '-R' options!\n", argv[0]);
 		usage( argv[0] );
 		return 1;
 	}
@@ -146,19 +168,35 @@ unsigned       u;
 	}
 
 try {
+PH<NfsDebug> c;
 
-NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
+    if ( rootH ) {
+        nfs_fh root_fh;
+        if ( 2*NFS_FHSIZE != strlen(rootH) ) {
+            fprintf( stderr, "%s: arg to -R must be exactly %d (hex) chars\n", argv[0], 2*NFS_FHSIZE );
+            return 1;
+        }
+        for ( u=0; u<NFS_FHSIZE; u++ ) {
+            if ( 1 != sscanf( rootH + 2*u, "%02hhx", (unsigned char*)&root_fh.data[u] ) ) {
+                fprintf( stderr, "%s: -R arg conversion to hex failed\n", argv[0] );
+                return 1;
+            }
+        }
+        c = new NfsDebug(srv, &root_fh, nfscred, nfsport);
+    } else {
+        c = new NfsDebug(srv, exp, nfscred, nfsport, mntcred, mntport);
+    }
 
     if ( dumpR ) {
-        const nfs_fh *rootHandle = c.root();
+        const nfs_fh *rootHandle = c->root();
         for ( u = 0; u < sizeof(rootHandle->data)/sizeof(rootHandle->data[0]); u++ ) {
-            printf("%02x", rootHandle->data[u]);
+            printf("%02x", (unsigned char)rootHandle->data[u]);
         }
         printf("\n");
     }
 
     if ( dumpM ) {
-        c.dumpMounts();
+        c->dumpMounts();
     }
 
 	if ( fnam ) {
@@ -168,12 +206,12 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 		int       st;
 		S         path( fnam );
 
-		a.dir  = *c.root();
+		a.dir  = *c->root();
 		a.name = path.getp();
-		st = c.lkup( &a, &atts );
+		st = c->lkup( &a, &atts );
 
 		if ( xid ) {
-			c.setNfsXid( xid );
+			c->setNfsXid( xid );
 		}
 
 		if ( 0 == st ) {
@@ -185,9 +223,9 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 				fh = a.dir;
                 if ( trunc ) {
                     sattr newatts;
-                    c.sattrDefaults( &newatts );
+                    c->sattrDefaults( &newatts );
                     newatts.size = 0;
-                    if ( (st = c.setattr( &fh, &newatts )) ) {
+                    if ( (st = c->setattr( &fh, &newatts )) ) {
                         fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));
                         return 1;
                     }
@@ -198,7 +236,7 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 				fprintf(stderr,"Directory lookup failed (%s)!\n", strerror(st));
 				return 1;
 			} else {
-				if ( c.creat( &a, &fh ) ) {
+				if ( c->creat( &a, &fh ) ) {
 					fprintf(stderr, "Unable to create file: %s\n", strerror(st));
 					return 1;
 				}
@@ -208,7 +246,7 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 		if ( msg ) {
 			S msgrw( msg );
 
-			st = c.write(&fh, 0, msgrw.len(), msgrw.getp());
+			st = c->write(&fh, 0, msgrw.len(), msgrw.getp());
 			if ( st < 0 ) {
 				fprintf( stderr, "Unable to write file: %s\n", strerror(-st) );
 			}
