@@ -32,7 +32,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hv] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -43,7 +43,8 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -e path       : remote directory we want to mount\n");
 	fprintf( stderr, "      -c filename   : name of file to create (optional)\n");
 	fprintf( stderr, "      -x xid        : XID (seed) to use for first NFS operation (optional)\n");
-	fprintf( stderr, "      message       : if given, written to filename (if -c present; ignored otherwise)\n");
+	fprintf( stderr, "      -t            : Truncate file when writing\n" );
+	fprintf( stderr, "      message       : if given, written to filename (if -c present; ignored otherwise)\n" );
 }
 
 static void listdir(NfsDebug *p, nfs_fh *fhp)
@@ -81,8 +82,9 @@ int            opt;
 const char    *fnam    = 0;
 const char    *msg     = "HELLO\n";
 unsigned       xid     = 0;
+int            trunc   = 0;
 
-	while ( (opt = getopt(argc, argv, "s:N:M:e:n:m:hc:x:v")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "s:N:M:e:n:m:hc:x:vt")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -106,6 +108,8 @@ unsigned       xid     = 0;
 			case 'm': s_p = &mntport;   break;
 
 			case 'n': s_p = &nfsport;   break;
+
+			case 't': trunc = 1;        break;
 
 			case 'x': u_p = &xid;       break;
 
@@ -141,12 +145,13 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 	if ( fnam ) {
 		diropargs a;
 		nfs_fh    fh;
+        fattr     atts;
 		int       st;
 		S         path( fnam );
 
 		a.dir  = *c.root();
 		a.name = path.getp();
-		st = c.lkup( &a );
+		st = c.lkup( &a, &atts );
 
 		if ( xid ) {
 			c.setNfsXid( xid );
@@ -159,6 +164,15 @@ NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
 			} else {
 				fprintf(stderr,"Warning: File exists already (not recreating)\n");
 				fh = a.dir;
+                if ( trunc ) {
+                    sattr newatts;
+                    c.sattrDefaults( &newatts );
+                    newatts.size = 0;
+                    if ( (st = c.setattr( &fh, &newatts )) ) {
+                        fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));
+                        return 1;
+                    }
+                }
 			}
 		} else {
 			if ( strchr( a.name, '/' ) ) {
