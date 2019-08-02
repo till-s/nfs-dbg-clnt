@@ -216,7 +216,7 @@ attrstat *res;
 	arg.file          = *fh;
 	arg.beginoffset   = 0; //ignored
 	arg.offset        = off;
-	arg.totalcount    = 0;
+	arg.totalcount    = 0; //ignored
 	arg.data.data_val = (caddr_t)buf;
 	arg.data.data_len = count;
 
