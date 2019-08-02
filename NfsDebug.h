@@ -57,7 +57,7 @@ private:
 	CLIENT *c_;
     int     s_;
 public:
-	Clnt(const char *cred, const char *srv, unsigned long prog, unsigned long vers, unsigned short locPort );
+	Clnt(const char *cred = 0, const char *srv = 0, unsigned long prog = 0, unsigned long vers = 0, unsigned short locPort = 0 );
 
 	CLIENT *get() { return c_; }
 
@@ -67,9 +67,9 @@ public:
 class Name {
 public:
 	char *name_;
-	Name(const char *x)
+	Name(const char *x = 0)
 	{
-		name_ = ::strdup( x );
+		name_ = x ? ::strdup( x ) : 0;
 	}
 
 	~Name()
@@ -90,6 +90,8 @@ private:
 
 public:
 	NfsDebug(const char *srv, const char *mnt, const char *nfscred = 0, unsigned short locNfsPort = 0, const char *mntcred = 0, unsigned short locMntPort = 0);
+
+	NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred = 0, unsigned short locNfsPort = 0);
 
 	virtual int  lkup(diropargs *arg, fattr *res_attr = 0);
 	virtual void dumpMounts();

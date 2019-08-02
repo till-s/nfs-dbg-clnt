@@ -9,7 +9,8 @@
 #include <stdio.h>
 
 Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort )
- : s_( -1 )
+ : c_(  0 ),
+   s_( -1 )
 {
 struct timeval wai;
 int            sd = RPC_ANYSOCK;
@@ -80,8 +81,10 @@ char           myname[256];
 
 Clnt::~Clnt()
 {
-	auth_destroy( c_->cl_auth );
-	clnt_destroy( c_ );
+    if ( c_ ) {
+        auth_destroy( c_->cl_auth );
+        clnt_destroy( c_ );
+    }
 	if ( s_ >= 0 ) {
 		close( s_ );
 	}
@@ -108,6 +111,12 @@ dirpath   exprt = m_.name_;
 	}
 
 	memcpy( &f_.data, res->fhstatus_u.fhs_fhandle, sizeof( f_.data ) );
+}
+
+NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsigned short locNfsPort)
+ : nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort )
+{
+    f_ = *mnt;
 }
 
 int
@@ -257,8 +266,9 @@ mountlist  *res;
 
 NfsDebug::~NfsDebug()
 {
-void *res;
-	mountproc_umnt_1( &m_.name_, mntClnt_.get() );
+    if ( mntClnt_.get() ) {
+        mountproc_umnt_1( &m_.name_, mntClnt_.get() );
+    }
 	fprintf( stderr, "Leaving NfsDebug destructor\n" );
 }
 

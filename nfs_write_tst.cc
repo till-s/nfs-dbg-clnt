@@ -32,7 +32,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -44,6 +44,8 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -c filename   : name of file to create (optional)\n");
 	fprintf( stderr, "      -x xid        : XID (seed) to use for first NFS operation (optional)\n");
 	fprintf( stderr, "      -t            : Truncate file when writing\n" );
+	fprintf( stderr, "      -d            : Dump mounts (server info)\n" );
+	fprintf( stderr, "      -r            : Dump root handle\n" );
 	fprintf( stderr, "      message       : if given, written to filename (if -c present; ignored otherwise)\n" );
 }
 
@@ -83,8 +85,11 @@ const char    *fnam    = 0;
 const char    *msg     = "HELLO\n";
 unsigned       xid     = 0;
 int            trunc   = 0;
+int            dumpM   = 0;
+int            dumpR   = 0;
+unsigned       u;
 
-	while ( (opt = getopt(argc, argv, "s:N:M:e:n:m:hc:x:vt")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "c:de:hM:m:N:n:rs:tvx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -110,6 +115,8 @@ int            trunc   = 0;
 			case 'n': s_p = &nfsport;   break;
 
 			case 't': trunc = 1;        break;
+			case 'd': dumpM = 1;        break;
+			case 'r': dumpR = 1;        break;
 
 			case 'x': u_p = &xid;       break;
 
@@ -141,6 +148,18 @@ int            trunc   = 0;
 try {
 
 NfsDebug c(srv, exp, nfscred, nfsport, mntcred, mntport);
+
+    if ( dumpR ) {
+        const nfs_fh *rootHandle = c.root();
+        for ( u = 0; u < sizeof(rootHandle->data)/sizeof(rootHandle->data[0]); u++ ) {
+            printf("%02x", rootHandle->data[u]);
+        }
+        printf("\n");
+    }
+
+    if ( dumpM ) {
+        c.dumpMounts();
+    }
 
 	if ( fnam ) {
 		diropargs a;
