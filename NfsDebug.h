@@ -86,16 +86,17 @@ private:
 	nfs_fh  f_;
 
 private:
-	virtual int  lkup1(diropargs *arg);
+	virtual int  lkup1(diropargs *arg, fattr *f);
 
 public:
 	NfsDebug(const char *srv, const char *mnt, const char *nfscred = 0, unsigned short locNfsPort = 0, const char *mntcred = 0, unsigned short locMntPort = 0);
 
-	virtual int  lkup(diropargs *arg);
+	virtual int  lkup(diropargs *arg, fattr *res_attr = 0);
 	virtual void dumpMounts();
 
 	virtual int  read (nfs_fh *fh, u_int off, u_int count, void *buf = 0);
 	virtual int  write(nfs_fh *fh, u_int off, u_int count, void *buf);
+    virtual int  setattr(nfs_fh *fh, sattr *attrs);
 
 	virtual const nfs_fh *root() { return &f_; }
 
@@ -103,6 +104,8 @@ public:
 	virtual void     setNfsXid(uint32_t xid);
 
 	virtual void     rm(diropargs *arg);
+
+    virtual void     sattrDefaults(sattr *attrs);
 
 	virtual int      creat(diropargs *arg, nfs_fh *newfh = 0, sattr *attrs = 0);
 

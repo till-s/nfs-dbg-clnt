@@ -111,7 +111,7 @@ dirpath   exprt = m_.name_;
 }
 
 int
-NfsDebug::lkup1(diropargs *arg)
+NfsDebug::lkup1(diropargs *arg, fattr *fa)
 {
 diropres *res;
 int       st;
@@ -126,6 +126,9 @@ int       st;
 		st = res->status;
 	} else {
 		memcpy( &arg->dir, &res->diropres_u.diropres.file, sizeof(arg->dir) );
+        if ( fa ) {
+            *fa = res->diropres_u.diropres.attributes;
+        }
 		st = 0;
 	}
 
@@ -133,7 +136,7 @@ int       st;
 }
 
 int
-NfsDebug::lkup(diropargs *arg)
+NfsDebug::lkup(diropargs *arg, fattr *fa)
 {
 char      *slp, *path = arg->name;
 char       ch;
@@ -143,7 +146,7 @@ int        st;
 		ch   = *slp;
 		*slp = 0;
 
-		st = lkup1( arg );
+		st = lkup1( arg, fa );
 
 		*slp = ch;
 
@@ -153,7 +156,7 @@ int        st;
 		arg->name = slp + 1;
 	}
 
-	st = *arg->name ? lkup1( arg ) : 0;
+	st = *arg->name ? lkup1( arg, fa ) : 0;
 
 	if ( 0 == st )
 		arg->name = 0;
@@ -295,29 +298,58 @@ nfsstat *res;
 		fprintf( stderr, "nfsproc_remove returned error: %s\n", strerror( *res ) );
 	}
 }
+
+void
+NfsDebug::sattrDefaults(sattr *attrs)
+{
+struct timeval now;
+nfstime        nfsnow;
+
+    gettimeofday( &now, 0 );
+    memset      ( attrs, 0, sizeof( *attrs ) );
+    nfsnow.seconds       = now.tv_sec;
+    nfsnow.useconds      = now.tv_usec;
+    attrs->mode  = 0664; 
+    attrs->uid   = getuid();
+    attrs->gid   = getgid();
+    attrs->size  = 0;
+    attrs->atime = nfsnow;
+    attrs->mtime = nfsnow;
+}
+
+int
+NfsDebug::setattr(nfs_fh *fh, sattr *attrs)
+{
+sattrargs      arg;
+attrstat      *res;
+
+    arg.file       = *fh;
+    arg.attributes = *attrs;
+
+    res = nfsproc_setattr_2( &arg, nfsClnt_.get() );
+
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_setattr call failed" );
+		return -2;
+	}
+	if ( res->status ) {
+		fprintf( stderr, "nfsproc_setattr returned error: %s\n", strerror( res->status ) );
+		return -res->status;
+	}
+    return 0;
+}
 	
 int
 NfsDebug::creat(diropargs *where, nfs_fh *newfh, sattr *attrs)
 {
 createargs     arg;
-struct timeval now;
-nfstime        nfsnow;
 diropres      *res;
 
 	arg.where = *where;
 	if ( attrs ) {
 		arg.attributes = *attrs;
 	} else {
-		gettimeofday( &now, 0 );
-		memset      ( &arg.attributes, 0, sizeof( arg.attributes ) );
-		nfsnow.seconds       = now.tv_sec;
-		nfsnow.useconds      = now.tv_usec;
-		arg.attributes.mode  = 0664; 
-		arg.attributes.uid   = getuid();
-		arg.attributes.gid   = getgid();
-        arg.attributes.size  = 0;
-        arg.attributes.atime = nfsnow;
-        arg.attributes.mtime = nfsnow;
+        sattrDefaults( &arg.attributes );
 	}
 
 	res = nfsproc_create_2( &arg, nfsClnt_.get() );
