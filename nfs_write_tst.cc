@@ -104,6 +104,7 @@ const char    *fnam    = 0;
 const char    *msg     = "HELLO\n";
 const char    *rootH   = 0;
 unsigned       xid     = 0;
+int            setXid  = 0;
 int            trunc   = 0;
 int            dumpM   = 0;
 int            dumpR   = 0;
@@ -140,7 +141,8 @@ unsigned       u;
 
 			case 'R': rootH = optarg;   break;
 
-			case 'x': u_p = &xid;       break;
+			case 'x': u_p    = &xid; 
+                      setXid = 1;       break;
 
 			case 'v':
 				printf( "Git Version: %s\n", GITVERSION );
@@ -210,7 +212,7 @@ PH<NfsDebug> c;
 		a.name = path.getp();
 		st = c->lkup( &a, &atts );
 
-		if ( xid ) {
+		if ( setXid ) {
 			c->setNfsXid( xid );
 		}
 
