@@ -120,6 +120,9 @@ dirpath   exprt = m_.name_;
 NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsigned short locNfsPort)
  : nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort )
 {
+	if ( ! mnt ) {
+		throw "Root NFS FH must not be NULL";
+	}
     f_ = *mnt;
 }
 

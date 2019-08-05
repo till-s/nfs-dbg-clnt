@@ -26,6 +26,7 @@ cdef extern from "NfsDebug.h":
     nfscookie *get()
   cdef cppclass c_NfsDebug "NfsDebug":
     c_NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const char *mntcred, unsigned short locMntPort) except+;
+    c_NfsDebug(const char *srv, nfs_fh *mnt, const char *nfscred, unsigned short locNfsPort) except+;
     void     dumpMounts()
     int      lkup(diropargs *)
     int      read (nfs_fh*, unsigned int off, unsigned int count, void *buf);
@@ -42,8 +43,25 @@ cdef extern from "NfsDebug.h":
 cdef class FH:
   cdef c_FH *fh_
 
-  def __cinit__(self):
-    fh_ = None
+  def __cinit__(self, bytearray a = None):
+    if None == a:
+      self.fh_ = <c_FH*>0
+    else:
+      self.fh_ = createFHFromByteArray( a )
+
+  def __iter__(self):
+    if self.fh_:
+      i = 0
+      while i < 32:
+        yield self.fh_.get().data[i]
+        i = i + 1
+
+  def dump(self):
+    if self.fh_:
+      for i in range(32):
+        print(self.fh_.get().data[i])
+    else:
+      print("FH is NULL")
 
   def dealloc(self):
     del self.fh_
@@ -53,14 +71,29 @@ cdef object createFH(const nfs_fh *fh):
   rval.fh_ = new c_FH( fh )
   return rval
 
+cdef c_FH *createFHFromByteArray(bytearray a):
+  cdef nfs_fh x
+  if len(a) != 32:
+    raise RuntimeError( "FH can only be created from bytearray of length {:d}".format( 32 ) )
+  for i in range( len(a) ):
+    x.data[i] = a[i]
+  return new c_FH( &x )
 
 cdef class NfsDebug:
   cdef c_NfsDebug *nfsDbg_
 
-  def __cinit__(self, str host, str exp, int nfsLocPort=0):
+  def __cinit__(self, str host, object exp, int nfsLocPort=0):
     cdef bytes hostb = host.encode('ascii')
-    cdef bytes expb  = exp.encode('ascii')
-    self.nfsDbg_ = new c_NfsDebug( hostb, expb, NULL, nfsLocPort, NULL, 0 )
+    cdef bytes expb
+    cdef FH    expf
+    if isinstance( exp, FH ):
+      expf = exp
+      self.nfsDbg_ = new c_NfsDebug( hostb, expf.fh_.get(), NULL, nfsLocPort )
+    elif isinstance( exp, str ):
+      expb = exp.encode('ascii')
+      self.nfsDbg_ = new c_NfsDebug( hostb, expb, NULL, nfsLocPort, NULL, 0 )
+    else:
+      raise RuntimeError("Unable to create a NfsDebug from this type of object")
 
   def __dealloc__(self):
     del self.nfsDbg_

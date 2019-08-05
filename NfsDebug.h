@@ -28,6 +28,8 @@ public:
 
 class FH : public StructWrap<nfs_fh> {
 public:
+	typedef char RawBytes[NFS_FHSIZE];
+
 	FH(const nfs_fh *pfh)
     : StructWrap<nfs_fh>( pfh )
 	{
