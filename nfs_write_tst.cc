@@ -223,7 +223,7 @@ PH<NfsDebug> c;
 				fh = a.dir;
                 if ( trunc ) {
                     sattr newatts;
-                    c->sattrDefaults( &newatts );
+                    c->sattrEmpty( &newatts );
                     newatts.size = 0;
                     if ( (st = c->setattr( &fh, &newatts )) ) {
                         fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));

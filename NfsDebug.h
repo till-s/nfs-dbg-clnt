@@ -108,6 +108,7 @@ public:
 	virtual void     rm(diropargs *arg);
 
     virtual void     sattrDefaults(sattr *attrs);
+    virtual void     sattrEmpty(sattr *attrs);
 
 	virtual int      creat(diropargs *arg, nfs_fh *newfh = 0, sattr *attrs = 0);
 

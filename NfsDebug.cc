@@ -335,6 +335,22 @@ nfstime        nfsnow;
     attrs->mtime = nfsnow;
 }
 
+void
+NfsDebug::sattrEmpty(sattr *attrs)
+{
+nfstime never;
+
+    never.seconds  = -1;
+    never.useconds = -1;
+
+    attrs->mode  = -1;
+    attrs->uid   = -1;
+    attrs->gid   = -1;
+    attrs->size  = -1;
+    attrs->atime = never;
+    attrs->mtime = never;
+}
+
 int
 NfsDebug::setattr(nfs_fh *fh, sattr *attrs)
 {
