@@ -375,6 +375,25 @@ attrstat      *res;
 	}
     return 0;
 }
+
+int
+NfsDebug::getattr(nfs_fh *fh, fattr *attrs)
+{
+attrstat      *res;
+
+    res = nfsproc_getattr_2( fh, nfsClnt_.get() );
+
+	if ( ! res ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_setattr call failed" );
+		return -2;
+	}
+	if ( res->status ) {
+		fprintf( stderr, "nfsproc_setattr returned error: %s\n", strerror( res->status ) );
+		return -res->status;
+	}
+    *attrs = res->attrstat_u.attributes;
+    return 0;
+}
 	
 int
 NfsDebug::creat(diropargs *where, nfs_fh *newfh, sattr *attrs)
