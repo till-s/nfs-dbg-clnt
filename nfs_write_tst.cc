@@ -50,7 +50,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] -s server_ip -e export | -R root_fh [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -R root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -65,6 +65,8 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -d            : Dump mounts (server info)\n" );
 	fprintf( stderr, "      -r            : Dump root handle\n" );
 	fprintf( stderr, "      -R fh_ascii   : Use root file-handle\n");
+	fprintf( stderr, "      -S seed       : 'Seed' the server cache by performing 'seed'\n");
+	fprintf( stderr, "                      writes with different XID\n");
 	fprintf( stderr, "      message       : if given, written to filename (if -f present; ignored otherwise)\n" );
 }
 
@@ -109,9 +111,10 @@ int            trunc   = 0;
 int            dumpM   = 0;
 int            dumpR   = 0;
 unsigned       u;
+unsigned       seed    = 0;
 char           rbuf[512];
 
-	while ( (opt = getopt(argc, argv, "f:de:hM:m:N:n:F:R:rs:tvx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "de:F:f:hM:m:N:n:R:rS:s:tvx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -141,6 +144,8 @@ char           rbuf[512];
 			case 'r': dumpR = 1;        break;
 
 			case 'R': rootH = optarg;   break;
+
+			case 'S': u_p   = &seed;    break;
 
 			case 'x': u_p    = &xid; 
                       setXid = 1;       break;
@@ -217,6 +222,10 @@ PH<NfsDebug> c;
 			c->setNfsXid( xid );
 		}
 
+        if ( seed && ! msg ) {
+            msg = "";
+        }
+
 		if ( 0 == st ) {
 			if ( '/' == fnam[strlen(fnam) - 1] ) {
 				listdir( &c, &a.dir );
@@ -260,13 +269,37 @@ PH<NfsDebug> c;
 		}
 
 		if ( msg ) {
-			S msgrw( msg );
+			S        msgrw( msg );
+            unsigned nc;
+            unsigned firstMatch;
+            const unsigned len = msgrw.len();
 
-			st = c->write(&fh, 0, msgrw.len(), msgrw.getp());
-			if ( st < 0 ) {
-				fprintf( stderr, "Unable to write file: %s\n", strerror(-st) );
-			}
-			printf( "%d chars written\n", st );
+            if ( 0 == ++seed ) {
+                // revert overflow
+                --seed;
+            }
+
+            nc         = 0;
+            firstMatch = seed;
+            for ( u = 0; u < seed; u++ ) {
+                st = c->write(&fh, 0, len, msgrw.getp());
+                if ( st < 0 ) {
+                    fprintf( stderr, "Unable to write file: %s\n", strerror(-st) );
+                    break;
+                }
+                if ( st == len && firstMatch >= seed ) {
+                    firstMatch = u;
+                    break;
+                }
+                nc += st;
+            }
+			printf( "%d chars written\n", nc );
+			printf( "First potentially successful write attempt ");
+            if ( firstMatch >= seed ) {
+                printf("-- NONE\n");
+            } else {
+                printf("# %u\n", firstMatch );
+            }
 		}
 	}
 
