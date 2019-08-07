@@ -50,7 +50,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-c fnam] [-x xid] -s server_ip -e export | -R root_fh [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] -s server_ip -e export | -R root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -59,13 +59,13 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -N nfscreds   : credentials ('[uid][.gid]') to use for nfs requests (defaults to getuid/getgid)\n");
 	fprintf( stderr, "      -s serverip   : IP (in dot notation) of NFS server\n");
 	fprintf( stderr, "      -e path       : remote directory we want to mount\n");
-	fprintf( stderr, "      -c filename   : name of file to create (optional)\n");
+	fprintf( stderr, "      -f filename   : name of file to create (optional)\n");
 	fprintf( stderr, "      -x xid        : XID (seed) to use for first NFS operation (optional)\n");
 	fprintf( stderr, "      -t            : Truncate file when writing\n" );
 	fprintf( stderr, "      -d            : Dump mounts (server info)\n" );
 	fprintf( stderr, "      -r            : Dump root handle\n" );
 	fprintf( stderr, "      -R fh_ascii   : Use root file-handle\n");
-	fprintf( stderr, "      message       : if given, written to filename (if -c present; ignored otherwise)\n" );
+	fprintf( stderr, "      message       : if given, written to filename (if -f present; ignored otherwise)\n" );
 }
 
 static void listdir(NfsDebug *p, nfs_fh *fhp)
@@ -101,7 +101,7 @@ unsigned short *s_p;
 unsigned       *u_p;
 int            opt;
 const char    *fnam    = 0;
-const char    *msg     = "HELLO\n";
+const char    *msg     = 0;
 const char    *rootH   = 0;
 unsigned       xid     = 0;
 int            setXid  = 0;
@@ -109,8 +109,9 @@ int            trunc   = 0;
 int            dumpM   = 0;
 int            dumpR   = 0;
 unsigned       u;
+char           rbuf[512];
 
-	while ( (opt = getopt(argc, argv, "c:de:hM:m:N:n:F:R:rs:tvx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "f:de:hM:m:N:n:F:R:rs:tvx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -129,7 +130,7 @@ unsigned       u;
 
 			case 'M': mntcred = optarg; break;
 
-			case 'c': fnam    = optarg; break;
+			case 'f': fnam    = optarg; break;
 
 			case 'm': s_p = &mntport;   break;
 
@@ -221,16 +222,24 @@ PH<NfsDebug> c;
 				listdir( &c, &a.dir );
 				msg = 0;
 			} else {
-				fprintf(stderr,"Warning: File exists already (not recreating)\n");
-				fh = a.dir;
-                if ( trunc ) {
-                    sattr newatts;
-                    c->sattrEmpty( &newatts );
-                    newatts.size = 0;
-                    if ( (st = c->setattr( &fh, &newatts )) ) {
-                        fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));
+                fh = a.dir;
+                if ( msg ) {
+                    fprintf(stderr,"Warning: File exists already (not recreating)\n");
+                    if ( trunc ) {
+                        sattr newatts;
+                        c->sattrEmpty( &newatts );
+                        newatts.size = 0;
+                        if ( (st = c->setattr( &fh, &newatts )) ) {
+                            fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));
+                            return 1;
+                        }
+                    }
+                } else {
+                    if ( (st = c->read( &fh, 0, sizeof(rbuf), rbuf )) < 0 ) {
+                        fprintf(stderr, "Reading file failed (%s)\n", strerror( - st ) );
                         return 1;
                     }
+                    fwrite(rbuf, sizeof(rbuf[0]), st, stdout);
                 }
 			}
 		} else {
@@ -238,10 +247,15 @@ PH<NfsDebug> c;
 				fprintf(stderr,"Directory lookup failed (%s)!\n", strerror(st));
 				return 1;
 			} else {
-				if ( c->creat( &a, &fh ) ) {
-					fprintf(stderr, "Unable to create file: %s\n", strerror(st));
-					return 1;
-				}
+                if ( msg ) {
+                    if ( c->creat( &a, &fh ) ) {
+                        fprintf(stderr, "Unable to create file: %s\n", strerror(st));
+                        return 1;
+                    }
+                } else {
+                    fprintf(stderr, "File does not exist: %s\n", fnam);
+                    return 1;
+                }
 			}
 		}
 
