@@ -139,7 +139,7 @@ int       st;
 
 	if ( res->status ) {
 		fprintf( stderr, "nfsprook_lookup error: %s\n", strerror( res->status ) ) ;
-		st = res->status;
+		st = -res->status;
 	} else {
 		memcpy( &arg->dir, &res->diropres_u.diropres.file, sizeof(arg->dir) );
         if ( fa ) {
@@ -371,7 +371,7 @@ attrstat      *res;
 	}
 	if ( res->status ) {
 		fprintf( stderr, "nfsproc_setattr returned error: %s\n", strerror( res->status ) );
-		return -res->status;
+        return -res->status;
 	}
     return 0;
 }
@@ -415,7 +415,7 @@ diropres      *res;
 	}
 	if ( res->status ) {
 		fprintf( stderr, "nfsproc_create failed; error: %s\n", strerror( res->status ) );
-		return res->status;
+		return -res->status;
 	}
 	if ( newfh ) {
 		memcpy( newfh, &res->diropres_u.diropres.file, sizeof( *newfh ) );

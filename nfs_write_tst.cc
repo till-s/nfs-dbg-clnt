@@ -239,7 +239,7 @@ PH<NfsDebug> c;
                         c->sattrEmpty( &newatts );
                         newatts.size = 0;
                         if ( (st = c->setattr( &fh, &newatts )) ) {
-                            fprintf(stderr,"Truncating file failed (%s)\n", strerror(st));
+                            fprintf(stderr,"Truncating file failed (%s)\n", strerror(-st));
                             return 1;
                         }
                     }
@@ -253,12 +253,12 @@ PH<NfsDebug> c;
 			}
 		} else {
 			if ( strchr( a.name, '/' ) ) {
-				fprintf(stderr,"Directory lookup failed (%s)!\n", strerror(st));
+				fprintf(stderr,"Directory lookup failed (%s)!\n", strerror(-st));
 				return 1;
 			} else {
                 if ( msg ) {
-                    if ( c->creat( &a, &fh ) ) {
-                        fprintf(stderr, "Unable to create file: %s\n", strerror(st));
+                    if ( (st = c->creat( &a, &fh )) ) {
+                        fprintf(stderr, "Unable to create file: %s\n", strerror(-st));
                         return 1;
                     }
                 } else {
@@ -273,6 +273,7 @@ PH<NfsDebug> c;
             unsigned nc;
             unsigned firstMatch;
             const unsigned len = msgrw.len();
+            fattr    attrs;
 
             if ( 0 == ++seed ) {
                 // revert overflow
@@ -287,11 +288,17 @@ PH<NfsDebug> c;
                     fprintf( stderr, "Unable to write file: %s\n", strerror(-st) );
                     break;
                 }
-                if ( st == len && firstMatch >= seed ) {
+                nc += st;
+                st = c->getattr( &fh, &attrs );
+                if ( st ) {
+                    fprintf( stderr, "Unable to get file attributes: %s\n", strerror(-st) );
+                    break;
+                }
+
+                if ( attrs.size == len && firstMatch >= seed ) {
                     firstMatch = u;
                     break;
                 }
-                nc += st;
             }
 			printf( "%d chars written\n", nc );
 			printf( "First potentially successful write attempt ");
