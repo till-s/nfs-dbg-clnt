@@ -59,7 +59,7 @@ private:
 	CLIENT *c_;
     int     s_;
 public:
-	Clnt(const char *cred = 0, const char *srv = 0, unsigned long prog = 0, unsigned long vers = 0, unsigned short locPort = 0, bool isUdp = true );
+	Clnt(const char *cred = 0, const char *srv = 0, unsigned long prog = 0, unsigned long vers = 0, unsigned short locPort = 0, bool useUdp = true );
 
 	CLIENT *get() { return c_; }
 

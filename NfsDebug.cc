@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort, bool isUdp )
+Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort, bool useUdp )
  : c_(  0 ),
    s_( -1 )
 {
@@ -56,7 +56,7 @@ char           myname[256];
 	srv.sin_port        = htons( 0 );
 
 	if ( locPort ) {
-		sd = socket( AF_INET, SOCK_DGRAM, 0 );
+		sd = socket( AF_INET, useUdp ? SOCK_DGRAM : SOCK_STREAM, 0 );
 		if ( sd < 0 ) {
 			throw "Unable to create Socket";
 		}
@@ -70,7 +70,7 @@ char           myname[256];
 		s_ = sd;
 	}
 	
-	if ( isUdp ) {
+	if ( useUdp ) {
 		if ( ! ( c_ = clntudp_create( &srv, prog, vers, wai, &sd ) ) ) {
 			if ( s_ >= 0 ) {
 				close( s_ );
