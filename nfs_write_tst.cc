@@ -83,7 +83,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvFRtT] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -r root_fh [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvFRtTW] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -r root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -100,7 +100,8 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -F            : Dump file handle\n" );
 	fprintf( stderr, "      -r fh_ascii   : Use root file-handle\n");
 	fprintf( stderr, "      -S seed       : 'Seed' the server cache by performing 'seed'\n");
-	fprintf( stderr, "      -T            : Repeated writes with readback verification\n");
+	fprintf( stderr, "      -T            : Use TCP instead of UDP for transport\n" );
+	fprintf( stderr, "      -W            : Repeated writes with readback verification\n");
 	fprintf( stderr, "                      using random XID\n");
 	fprintf( stderr, "                      writes with different XID\n");
 	fprintf( stderr, "      message       : if given, written to filename (if -f present; ignored otherwise)\n" );
@@ -172,7 +173,7 @@ unsigned       u;
 unsigned       seed    = 0;
 char           rbuf[512];
 
-	while ( (opt = getopt(argc, argv, "de:Ff:hM:m:N:n:Rr:S:s:Ttvx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "de:Ff:hM:m:N:n:Rr:S:s:TtvWx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -206,7 +207,7 @@ char           rbuf[512];
 
 			case 'S': u_p   = &seed;    break;
 
-			case 'T': randTst= 1;       break;
+			case 'W': randTst= 1;       break;
 
 			case 'x': u_p    = &xid; 
                       setXid = 1;       break;
@@ -346,7 +347,7 @@ PH<NfsDebug> c;
                         succ++;
                     }
                 }
-                printf("Seeding took %u attempts\n", attempt);
+                printf("Seeding took %llu attempts\n", (unsigned long long)attempt);
 
             } else {
                 st = c->write( &fh, 0, len, msgrw.getp() );

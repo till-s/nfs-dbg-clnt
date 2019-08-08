@@ -1,3 +1,4 @@
+from libcpp      cimport bool
 from libc.string cimport memcpy
 from libc.stdint cimport uint32_t
 
@@ -25,8 +26,8 @@ cdef extern from "NfsDebug.h":
     c_DH()
     nfscookie *get()
   cdef cppclass c_NfsDebug "NfsDebug":
-    c_NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const char *mntcred, unsigned short locMntPort) except+;
-    c_NfsDebug(const char *srv, nfs_fh *mnt, const char *nfscred, unsigned short locNfsPort) except+;
+    c_NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const char *mntcred, unsigned short locMntPort, bool useUdp) except+;
+    c_NfsDebug(const char *srv, nfs_fh *mnt, const char *nfscred, unsigned short locNfsPort, bool useUdp) except+;
     void     dumpMounts()
     int      lkup(diropargs *)
     int      read (nfs_fh*, unsigned int off, unsigned int count, void *buf);
@@ -82,16 +83,16 @@ cdef c_FH *createFHFromByteArray(bytearray a):
 cdef class NfsDebug:
   cdef c_NfsDebug *nfsDbg_
 
-  def __cinit__(self, str host, object exp, int nfsLocPort=0):
+  def __cinit__(self, str host, object exp, int nfsLocPort=0, bool useUdp = True):
     cdef bytes hostb = host.encode('ascii')
     cdef bytes expb
     cdef FH    expf
     if isinstance( exp, FH ):
       expf = exp
-      self.nfsDbg_ = new c_NfsDebug( hostb, expf.fh_.get(), NULL, nfsLocPort )
+      self.nfsDbg_ = new c_NfsDebug( hostb, expf.fh_.get(), NULL, nfsLocPort, useUdp )
     elif isinstance( exp, str ):
       expb = exp.encode('ascii')
-      self.nfsDbg_ = new c_NfsDebug( hostb, expb, NULL, nfsLocPort, NULL, 0 )
+      self.nfsDbg_ = new c_NfsDebug( hostb, expb, NULL, nfsLocPort, NULL, 0, useUdp )
     else:
       raise RuntimeError("Unable to create a NfsDebug from this type of object")
 

@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <stdio.h>
 
-Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort )
+Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort, bool isUdp )
  : c_(  0 ),
    s_( -1 )
 {
@@ -70,12 +70,22 @@ char           myname[256];
 		s_ = sd;
 	}
 	
-	if ( ! ( c_ = clntudp_create( &srv, prog, vers, wai, &sd ) ) ) {
-		if ( s_ >= 0 ) {
-			close( s_ );
+	if ( isUdp ) {
+		if ( ! ( c_ = clntudp_create( &srv, prog, vers, wai, &sd ) ) ) {
+			if ( s_ >= 0 ) {
+				close( s_ );
+			}
+			clnt_pcreateerror( inet_ntoa( srv.sin_addr ) );
+			throw "Unable to create UDP client";
 		}
-		clnt_pcreateerror( inet_ntoa( srv.sin_addr ) );
-		throw "Unable to create client";
+	} else {
+		if ( ! ( c_ = clnttcp_create( &srv, prog, vers, &sd, 0, 0 ) ) ) {
+			if ( s_ >= 0 ) {
+				close( s_ );
+			}
+			clnt_pcreateerror( inet_ntoa( srv.sin_addr ) );
+			throw "Unable to create UDP client";
+		}
 	}
 
 	printf("Creating credentials %u.%u\n", uid, gid );
@@ -94,9 +104,9 @@ Clnt::~Clnt()
 	}
 }
 
-NfsDebug::NfsDebug(const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const  char *mntcred, unsigned short locMntPort)
- : mntClnt_( mntcred, srv, MOUNTPROG  , MOUNTVERS  , locMntPort ),
-   nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort ),
+NfsDebug::NfsDebug( const char *srv, const char *mnt, const char *nfscred, unsigned short locNfsPort, const  char *mntcred, unsigned short locMntPort, bool useUdp )
+ : mntClnt_( mntcred, srv, MOUNTPROG  , MOUNTVERS  , locMntPort, true   ),
+   nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort, useUdp ),
    m_      ( mnt                                                )
 {
 fhstatus *res;
@@ -117,8 +127,8 @@ dirpath   exprt = m_.name_;
 	memcpy( &f_.data, res->fhstatus_u.fhs_fhandle, sizeof( f_.data ) );
 }
 
-NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsigned short locNfsPort)
- : nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort )
+NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsigned short locNfsPort, bool useUdp)
+ : nfsClnt_( nfscred, srv, NFS_PROGRAM, NFS_VERSION, locNfsPort, useUdp )
 {
 	if ( ! mnt ) {
 		throw "Root NFS FH must not be NULL";
