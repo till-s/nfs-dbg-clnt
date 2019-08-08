@@ -169,6 +169,7 @@ int            dumpM   = 0;
 int            dumpR   = 0;
 int            dumpF   = 0;
 int            randTst = 0;
+bool           useUdp  = true;
 unsigned       u;
 unsigned       seed    = 0;
 char           rbuf[512];
@@ -206,6 +207,8 @@ char           rbuf[512];
 			case 'r': rootH = optarg;   break;
 
 			case 'S': u_p   = &seed;    break;
+
+			case 'T': useUdp = false;   break;
 
 			case 'W': randTst= 1;       break;
 
@@ -256,9 +259,9 @@ PH<NfsDebug> c;
                 return 1;
             }
         }
-        c = new NfsDebug(srv, &root_fh, nfscred, nfsport);
+        c = new NfsDebug(srv, &root_fh, nfscred, nfsport, useUdp);
     } else {
-        c = new NfsDebug(srv, exp, nfscred, nfsport, mntcred, mntport);
+        c = new NfsDebug(srv, exp, nfscred, nfsport, mntcred, mntport, useUdp);
     }
 
     if ( dumpR ) {
