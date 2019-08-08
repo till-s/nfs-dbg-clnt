@@ -2,10 +2,43 @@
 #include <getopt.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #ifndef GITVERSION
 #error "Makefile should define GITVERSION by passing -D option"
 #endif
+
+static void dumpFH(FILE *f, const nfs_fh *fh)
+{
+unsigned u;
+    for ( u = 0; u < sizeof(fh->data)/sizeof(fh->data[0]); u++ ) {
+        fprintf(f, "%02x", (unsigned char)fh->data[u]);
+    }
+    fprintf(f, "\n");
+}
+
+static int
+writeAndVerify(NfsDebug *p, nfs_fh *fh, uint64_t attempt)
+{
+int      st;
+uint64_t rbv;
+
+    st = p->write( fh, 0, sizeof(attempt), &attempt );
+    if ( st < 0 )
+        return st;
+    st = p->read( fh, 0, sizeof(rbv), &rbv );
+    if ( st < 0 )
+        return st;
+    if ( rbv != attempt ) {
+        fprintf(stderr,"Verification mismatch; expected %llu but read back %llu\n",
+            (unsigned long long)attempt,
+            (unsigned long long)rbv
+        );
+        return 1;
+    }
+    return 0;
+}
 
 class S {
 private:
@@ -50,7 +83,7 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvt] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -R root_fh [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hdvFRtT] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -r root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
@@ -63,9 +96,12 @@ static void usage(const char *nm)
 	fprintf( stderr, "      -x xid        : XID (seed) to use for first NFS operation (optional)\n");
 	fprintf( stderr, "      -t            : Truncate file when writing\n" );
 	fprintf( stderr, "      -d            : Dump mounts (server info)\n" );
-	fprintf( stderr, "      -r            : Dump root handle\n" );
-	fprintf( stderr, "      -R fh_ascii   : Use root file-handle\n");
+	fprintf( stderr, "      -R            : Dump root handle\n" );
+	fprintf( stderr, "      -F            : Dump file handle\n" );
+	fprintf( stderr, "      -r fh_ascii   : Use root file-handle\n");
 	fprintf( stderr, "      -S seed       : 'Seed' the server cache by performing 'seed'\n");
+	fprintf( stderr, "      -T            : Repeated writes with readback verification\n");
+	fprintf( stderr, "                      using random XID\n");
 	fprintf( stderr, "                      writes with different XID\n");
 	fprintf( stderr, "      message       : if given, written to filename (if -f present; ignored otherwise)\n" );
 }
@@ -86,6 +122,26 @@ DH         cookie;
 		cookie = DH( &pp->cookie );
 		FreeEntry( e );
 	}
+}
+
+static void
+randomXidTest(NfsDebug *p, nfs_fh *fh)
+{
+uint32_t xid;
+uint64_t attempt =  (uint64_t)-1LL;
+int      st;
+
+    do {
+        ++attempt;
+        xid = random();
+        p->setNfsXid( xid );
+    } while ( 0 == ( st = writeAndVerify( p, fh, attempt ) ) );
+    fprintf(stderr,"writeAndVerify FAILED on attempt %llu due to ", (unsigned long long)attempt);
+    if ( st > 0 ) {
+        fprintf(stderr,"readback mismatch!\n");
+    } else {
+        fprintf(stderr,"error: %s\n", strerror( -st ) );
+    }
 }
 
 
@@ -110,11 +166,13 @@ int            setXid  = 0;
 int            trunc   = 0;
 int            dumpM   = 0;
 int            dumpR   = 0;
+int            dumpF   = 0;
+int            randTst = 0;
 unsigned       u;
 unsigned       seed    = 0;
 char           rbuf[512];
 
-	while ( (opt = getopt(argc, argv, "de:F:f:hM:m:N:n:R:rS:s:tvx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "de:Ff:hM:m:N:n:Rr:S:s:Ttvx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -141,11 +199,14 @@ char           rbuf[512];
 
 			case 't': trunc = 1;        break;
 			case 'd': dumpM = 1;        break;
-			case 'r': dumpR = 1;        break;
+			case 'R': dumpR = 1;        break;
+			case 'F': dumpF = 1;        break;
 
-			case 'R': rootH = optarg;   break;
+			case 'r': rootH = optarg;   break;
 
 			case 'S': u_p   = &seed;    break;
+
+			case 'T': randTst= 1;       break;
 
 			case 'x': u_p    = &xid; 
                       setXid = 1;       break;
@@ -175,6 +236,10 @@ char           rbuf[512];
 		msg = argv[optind];
 	}
 
+    if ( seed && !msg ) {
+        msg = "";
+    }
+
 try {
 PH<NfsDebug> c;
 
@@ -196,11 +261,7 @@ PH<NfsDebug> c;
     }
 
     if ( dumpR ) {
-        const nfs_fh *rootHandle = c->root();
-        for ( u = 0; u < sizeof(rootHandle->data)/sizeof(rootHandle->data[0]); u++ ) {
-            printf("%02x", (unsigned char)rootHandle->data[u]);
-        }
-        printf("\n");
+        dumpFH( stdout, c->root() );
     }
 
     if ( dumpM ) {
@@ -220,18 +281,22 @@ PH<NfsDebug> c;
 
 		if ( setXid ) {
 			c->setNfsXid( xid );
+            srandom( xid );
 		}
 
-        if ( seed && ! msg ) {
-            msg = "";
-        }
-
 		if ( 0 == st ) {
+            fh = a.dir;
+            if ( dumpF ) {
+                printf("FileHandle: ");
+                dumpFH( stdout, &fh );
+            }
 			if ( '/' == fnam[strlen(fnam) - 1] ) {
 				listdir( &c, &a.dir );
 				msg = 0;
+			} else if ( randTst ) {
+                randomXidTest( &c, &fh );
+                msg = 0;
 			} else {
-                fh = a.dir;
                 if ( msg ) {
                     fprintf(stderr,"Warning: File exists already (not recreating)\n");
                     if ( trunc ) {
@@ -270,42 +335,26 @@ PH<NfsDebug> c;
 
 		if ( msg ) {
 			S        msgrw( msg );
-            unsigned nc;
-            unsigned firstMatch;
             const unsigned len = msgrw.len();
             fattr    attrs;
+            uint64_t attempt, succ;
 
-            if ( 0 == ++seed ) {
-                // revert overflow
-                --seed;
-            }
+            if ( seed ) {
 
-            nc         = 0;
-            firstMatch = seed;
-            for ( u = 0; u < seed; u++ ) {
-                st = c->write(&fh, 0, len, msgrw.getp());
-                if ( st < 0 ) {
-                    fprintf( stderr, "Unable to write file: %s\n", strerror(-st) );
-                    break;
+                for ( attempt = succ = 0; succ < seed; attempt++ ) {
+                    if ( 0 == writeAndVerify( &c, &fh, attempt ) ) {
+                        succ++;
+                    }
                 }
-                nc += st;
-                st = c->getattr( &fh, &attrs );
-                if ( st ) {
-                    fprintf( stderr, "Unable to get file attributes: %s\n", strerror(-st) );
-                    break;
-                }
+                printf("Seeding took %u attempts\n", attempt);
 
-                if ( attrs.size == len && firstMatch >= seed ) {
-                    firstMatch = u;
-                    break;
-                }
-            }
-			printf( "%d chars written\n", nc );
-			printf( "First potentially successful write attempt ");
-            if ( firstMatch >= seed ) {
-                printf("-- NONE\n");
             } else {
-                printf("# %u\n", firstMatch );
+                st = c->write( &fh, 0, len, msgrw.getp() );
+                if ( st < 0 ) {
+                    fprintf( stderr,"Error writing file: %s\n", strerror( -st ) );
+                } else {
+                    printf( "%d chars written\n", st );
+                }
             }
 		}
 	}
