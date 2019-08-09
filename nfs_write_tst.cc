@@ -353,12 +353,17 @@ PH<NfsDebug> c;
                 printf("Seeding took %llu attempts\n", (unsigned long long)attempt);
 
             } else {
+				unsigned long tmpXid;
+
                 st = c->write( &fh, 0, len, msgrw.getp() );
                 if ( st < 0 ) {
                     fprintf( stderr,"Error writing file: %s\n", strerror( -st ) );
                 } else {
                     printf( "%d chars written\n", st );
                 }
+
+				tmpXid = c->getNfsXid();
+				printf("Final XID was %lu (0x%08lx)\n", tmpXid, tmpXid);
             }
 		}
 	}
