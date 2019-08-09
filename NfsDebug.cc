@@ -334,14 +334,14 @@ unsigned long tmp;
 		fprintf( stderr, "clnt_control(CLGET_XID) failed" );
 		return 0;
 	}
-	rval = (uint32_t)tmp;
+	rval = (uint32_t) ntohl( tmp );
 	return rval;
 }
 
 void
 NfsDebug::setNfsXid(uint32_t xid)
 {
-unsigned long tmp = xid;
+unsigned long tmp = htonl( xid );
 	if ( ! clnt_control( nfsClnt_.get(), CLSET_XID, (caddr_t)&tmp ) ) {
 		fprintf( stderr, "clnt_control(CLSET_XID) failed" );
 	}
