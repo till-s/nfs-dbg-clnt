@@ -86,6 +86,7 @@ private:
 	Clnt    nfsClnt_;
 	Name    m_;
 	nfs_fh  f_;
+	enum { XID_NORMAL, XID_NET_BYTE_ORDER } xidMode_;
 
 private:
 	virtual int  lkup1(diropargs *arg, fattr *f);
@@ -97,6 +98,8 @@ public:
 
 	virtual int  lkup(diropargs *arg, fattr *res_attr = 0);
 	virtual void dumpMounts();
+
+	virtual int  null();
 
 	virtual int  read (nfs_fh *fh, u_int off, u_int count, void *buf = 0);
 	virtual int  write(nfs_fh *fh, u_int off, u_int count, void *buf);

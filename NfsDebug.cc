@@ -295,6 +295,15 @@ attrstat *res;
 	return res->attrstat_u.attributes.size;
 }
 
+int NfsDebug::null()
+{
+	if ( ! nfsproc_null_2( 0, nfsClnt_.get() ) ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_null_2 failed");
+		return -1;
+	}
+	return 0;
+}
+
 void
 NfsDebug::dumpMounts()
 {
