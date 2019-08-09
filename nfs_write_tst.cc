@@ -18,16 +18,17 @@ unsigned u;
     fprintf(f, "\n");
 }
 
+// Use a separate client for reading back so that write XIDs are unique
 static int
-writeAndVerify(NfsDebug *p, nfs_fh *fh, uint64_t attempt)
+writeAndVerify(NfsDebug *wc, NfsDebug *rc, nfs_fh *fh, uint64_t attempt)
 {
 int      st;
 uint64_t rbv;
 
-    st = p->write( fh, 0, sizeof(attempt), &attempt );
+    st = wc->write( fh, 0, sizeof(attempt), &attempt );
     if ( st < 0 )
         return st;
-    st = p->read( fh, 0, sizeof(rbv), &rbv );
+    st = rc->read( fh, 0, sizeof(rbv), &rbv );
     if ( st < 0 )
         return st;
     if ( rbv != attempt ) {
@@ -126,7 +127,7 @@ DH         cookie;
 }
 
 static void
-randomXidTest(NfsDebug *p, nfs_fh *fh)
+randomXidTest(NfsDebug *wc, NfsDebug *rc, nfs_fh *fh)
 {
 uint32_t xid;
 uint64_t attempt =  (uint64_t)-1LL;
@@ -135,8 +136,8 @@ int      st;
     do {
         ++attempt;
         xid = random();
-        p->setNfsXid( xid );
-    } while ( 0 == ( st = writeAndVerify( p, fh, attempt ) ) );
+        wc->setNfsXid( xid );
+    } while ( 0 == ( st = writeAndVerify( wc, rc, fh, attempt ) ) );
     fprintf(stderr,"writeAndVerify FAILED on attempt %llu due to ", (unsigned long long)attempt);
     if ( st > 0 ) {
         fprintf(stderr,"readback mismatch!\n");
@@ -245,7 +246,7 @@ char           rbuf[512];
     }
 
 try {
-PH<NfsDebug> c;
+PH<NfsDebug> c, rc;
 
     if ( rootH ) {
         nfs_fh root_fh;
@@ -260,8 +261,10 @@ PH<NfsDebug> c;
             }
         }
         c = new NfsDebug(srv, &root_fh, nfscred, nfsport, useUdp);
+       rc = new NfsDebug(srv, &root_fh, nfscred, 0      , useUdp);
     } else {
         c = new NfsDebug(srv, exp, nfscred, nfsport, mntcred, mntport, useUdp);
+       rc = new NfsDebug(srv, exp, nfscred, 0      , mntcred, 0      , useUdp);
     }
 
     if ( dumpR ) {
@@ -298,7 +301,7 @@ PH<NfsDebug> c;
 				listdir( &c, &a.dir );
 				msg = 0;
 			} else if ( randTst ) {
-                randomXidTest( &c, &fh );
+                randomXidTest( &c, &rc, &fh );
                 msg = 0;
 			} else {
                 if ( msg ) {
@@ -346,7 +349,7 @@ PH<NfsDebug> c;
             if ( seed ) {
 
                 for ( attempt = succ = 0; succ < seed; attempt++ ) {
-                    if ( 0 == writeAndVerify( &c, &fh, attempt ) ) {
+                    if ( 0 == writeAndVerify( &c, &rc, &fh, attempt ) ) {
                         succ++;
                     }
                 }
