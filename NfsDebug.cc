@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <stdio.h>
+#include <rpc/pmap_clnt.h>
 
 Clnt::Clnt( const char *cred, const char *srvn, unsigned long prog, unsigned long vers, unsigned short locPort, bool useUdp )
  : c_(  0 ),
@@ -60,12 +61,42 @@ char           myname[256];
 		if ( sd < 0 ) {
 			throw "Unable to create Socket";
 		}
+
+		if ( ! useUdp ) {
+			struct linger  ling;
+			int            reuse = 1;
+
+			ling.l_onoff  = 1;
+			ling.l_linger = 3;
+
+			if ( setsockopt( sd, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling) ) ) {
+				throw "setsockopt(SO_LINGER) failed";
+			}
+
+			if ( setsockopt( sd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse) ) ) {
+				throw "setsockopt(SO_REUSEADDR) failed";
+			}
+		}
+
 		me.sin_family      = AF_INET;
 		me.sin_addr.s_addr = htonl( INADDR_ANY );
 		me.sin_port        = htons( locPort    );
+
 		if ( bind( sd, (struct sockaddr*) &me, sizeof( me ) ) ) {
 			close( sd );
 			throw "Unable to bind socket";
+		}
+
+		if ( ! useUdp ) {
+			unsigned short port;
+			if ( ! (port = pmap_getport( &srv, prog, vers, IPPROTO_TCP ) )) {
+				throw "Portmapper lookup failed";
+			}
+			srv.sin_port = htons( port );
+			if ( connect( sd, (struct sockaddr*)&srv, sizeof(srv) ) ) {
+				close( sd );
+				throw "Unable to connect socket";
+			}
 		}
 		s_ = sd;
 	}
@@ -101,6 +132,7 @@ Clnt::~Clnt()
     }
 	if ( s_ >= 0 ) {
 		close( s_ );
+		printf("Closed Clnt\n");
 	}
 }
 

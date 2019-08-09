@@ -113,7 +113,7 @@ cdef class NfsDebug:
   def root(self):
     return createFH( self.nfsDbg_.root() )
 
-  def read(self, FH hdl, unsigned int count, unsigned int off = 0):
+  def read(self, FH hdl, unsigned int count = 8192, unsigned int off = 0):
     buf = bytearray(count)
     cdef char *bufp = buf
     got = self.nfsDbg_.read( hdl.fh_.get(), off, count, bufp )
