@@ -347,7 +347,7 @@ unsigned long tmp = xid;
 	}
 }
 
-void
+int
 NfsDebug::rm(diropargs *arg)
 {
 nfsstat *res;
@@ -355,11 +355,13 @@ nfsstat *res;
 	res = nfsproc_remove_2( arg, nfsClnt_.get() );
 	if ( ! res ) {
 		clnt_perror( nfsClnt_.get(), "nfsproc_remove call failed" );
-		return;
+		return - 2;
 	}
 	if ( *res ) {
 		fprintf( stderr, "nfsproc_remove returned error: %s\n", strerror( *res ) );
+        return -(*res);
 	}
+    return 0;
 }
 
 void
@@ -372,7 +374,7 @@ nfstime        nfsnow;
     memset      ( attrs, 0, sizeof( *attrs ) );
     nfsnow.seconds       = now.tv_sec;
     nfsnow.useconds      = now.tv_usec;
-    attrs->mode  = 0664; 
+    attrs->mode  = 0x01000000 | 0664; // normal file
     attrs->uid   = getuid();
     attrs->gid   = getgid();
     attrs->size  = 0;

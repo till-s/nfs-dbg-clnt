@@ -108,7 +108,7 @@ public:
 	virtual uint32_t getNfsXid();
 	virtual void     setNfsXid(uint32_t xid);
 
-	virtual void     rm(diropargs *arg);
+	virtual int      rm(diropargs *arg);
 
     virtual void     sattrDefaults(sattr *attrs);
     virtual void     sattrEmpty(sattr *attrs);

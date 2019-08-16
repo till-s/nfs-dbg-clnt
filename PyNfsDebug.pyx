@@ -36,7 +36,7 @@ cdef extern from "NfsDebug.h":
     const nfs_fh* root()
     uint32_t getNfsXid()
     void     setNfsXid(uint32_t)
-    void     rm(diropargs *)
+    int      rm(diropargs *)
     int      creat(diropargs *, nfs_fh *)
     entry   *ls(nfs_fh *, unsigned count, nfscookie *cp)
   cdef void FreeEntry(entry*)

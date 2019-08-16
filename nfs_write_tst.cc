@@ -83,8 +83,10 @@ public:
 
 static void usage(const char *nm)
 {
-	fprintf( stderr, "Usage: %s [-hdvFRtTW] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -r root_fh [message]\n", nm ); 
+	fprintf( stderr, "Usage: %s [-hCdvFRtTW] [-m mountport] [-n nfsport] [-M mount_creds] [-N nfs_creds] [-f fnam] [-x xid] [-S seed] -s server_ip -e export | -r root_fh [message]\n", nm ); 
 	fprintf( stderr, "      -h            : this message\n");
+	fprintf( stderr, "      -C            : force 'creat' call even if file exists\n");
+	fprintf( stderr, "      -D            : delete file\n");
 	fprintf( stderr, "      -v            : print git description ('version')\n");
 	fprintf( stderr, "      -m mountport  : local port from where to send mount requests (defaults to any)\n");
 	fprintf( stderr, "      -n nfsport    : local port from where to send nfs   requests (defaults to any)\n");
@@ -170,11 +172,13 @@ int            dumpR   = 0;
 int            dumpF   = 0;
 int            randTst = 0;
 bool           useUdp  = true;
+bool           forceC  = false;
+bool           remove  = false;
 unsigned       u;
 unsigned       seed    = 0;
 char           rbuf[512];
 
-	while ( (opt = getopt(argc, argv, "de:Ff:hM:m:N:n:Rr:S:s:TtvWx:")) > 0 ) {
+	while ( (opt = getopt(argc, argv, "dDCe:Ff:hM:m:N:n:Rr:S:s:TtvWx:")) > 0 ) {
 
 		s_p = 0;
 		u_p = 0;
@@ -184,6 +188,10 @@ char           rbuf[512];
 				/* fall thru */
 			default:  usage(argv[0]);
 				return rval;
+
+            case 'C': forceC = true;    break;
+
+            case 'D': remove = true;    break;
 
 			case 's': srv = optarg;     break;
 
@@ -244,6 +252,16 @@ char           rbuf[512];
         msg = "";
     }
 
+    if ( remove && msg ) {
+        fprintf(stderr,"%s: cannot remove (-D) when message is present\n", argv[0]);
+        return 1;
+    }
+
+    if ( forceC && !msg ) {
+        fprintf(stderr,"%s: require message with -C (force-create)\n", argv[0]);
+        return 1;
+    }
+
 try {
 PH<NfsDebug> c;
 
@@ -277,7 +295,15 @@ PH<NfsDebug> c;
 		nfs_fh    fh;
         fattr     atts;
 		int       st;
+        char     *tailNam = 0;
 		S         path( fnam );
+
+        if ( forceC || remove ) {
+            if ( (tailNam = strrchr( path.getp(), '/' )) ) {
+                *tailNam = 0;
+                tailNam++;
+            }
+        }
 
 		a.dir  = *c->root();
 		a.name = path.getp();
@@ -288,7 +314,7 @@ PH<NfsDebug> c;
             srandom( xid );
 		}
 
-		if ( 0 == st ) {
+		if ( 0 == st && ! forceC && ! remove ) {
             fh = a.dir;
             if ( dumpF ) {
                 printf("FileHandle: ");
@@ -321,18 +347,29 @@ PH<NfsDebug> c;
                 }
 			}
 		} else {
-			if ( strchr( a.name, '/' ) ) {
+			if ( a.name && strchr( a.name, '/' ) ) {
 				fprintf(stderr,"Directory lookup failed (%s)!\n", strerror(-st));
 				return 1;
 			} else {
+                if ( tailNam ) {
+                    a.name = tailNam;
+                }
                 if ( msg ) {
                     if ( (st = c->creat( &a, &fh )) ) {
                         fprintf(stderr, "Unable to create file: %s\n", strerror(-st));
                         return 1;
                     }
                 } else {
-                    fprintf(stderr, "File does not exist: %s\n", fnam);
-                    return 1;
+                    if ( remove ) {
+                        if ( (st = c->rm( &a )) < 0 ) {
+                            fprintf(stderr, "Removing file failed (%s)\n", strerror( - st ) );
+                            return 1;
+                        }
+                        printf("Removed file\n");
+                    } else {
+                        fprintf(stderr, "File does not exist: %s\n", fnam);
+                        return 1;
+                    }
                 }
 			}
 		}
