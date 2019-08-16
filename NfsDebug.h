@@ -86,9 +86,24 @@ private:
 	Clnt    nfsClnt_;
 	Name    m_;
 	nfs_fh  f_;
+	enum {
+		XID_HOST_BYTE_ORDER_INC,
+		XID_HOST_BYTE_ORDER_DEC,
+		XID_NET_BYTE_ORDER_INC,
+		XID_NET_BYTE_ORDER_DEC
+	}       xidIncMode_;
 
-private:
+	enum {
+		XID_PRE_NONE,
+		XID_PRE_INC,
+		XID_PRE_DEC
+	}       xidSetMode_;
+
+	void checkAndSetXidMode();
+
 	virtual int  lkup1(diropargs *arg, fattr *f);
+
+	virtual void setNfsXidRaw(uint32_t xid);
 
 public:
 	NfsDebug(const char *srv, const char *mnt, const char *nfscred = 0, unsigned short locNfsPort = 0, const char *mntcred = 0, unsigned short locMntPort = 0, bool useUdp = true);
@@ -97,6 +112,8 @@ public:
 
 	virtual int  lkup(diropargs *arg, fattr *res_attr = 0);
 	virtual void dumpMounts();
+
+	virtual int  null();
 
 	virtual int  read (nfs_fh *fh, u_int off, u_int count, void *buf = 0);
 	virtual int  write(nfs_fh *fh, u_int off, u_int count, void *buf);

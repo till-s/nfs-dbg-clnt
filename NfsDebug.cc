@@ -100,7 +100,7 @@ char           myname[256];
 		}
 		s_ = sd;
 	}
-	
+
 	if ( useUdp ) {
 		if ( ! ( c_ = clntudp_create( &srv, prog, vers, wai, &sd ) ) ) {
 			if ( s_ >= 0 ) {
@@ -157,6 +157,8 @@ dirpath   exprt = m_.name_;
 	}
 
 	memcpy( &f_.data, res->fhstatus_u.fhs_fhandle, sizeof( f_.data ) );
+
+	checkAndSetXidMode();
 }
 
 NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsigned short locNfsPort, bool useUdp)
@@ -166,6 +168,7 @@ NfsDebug::NfsDebug(const char *srv, nfs_fh     *mnt, const char *nfscred, unsign
 		throw "Root NFS FH must not be NULL";
 	}
     f_ = *mnt;
+	checkAndSetXidMode();
 }
 
 int
@@ -177,7 +180,7 @@ int       st;
 	if ( ! res ) {
 		clnt_perror( nfsClnt_.get(), "nfsproc_lookup -- call failed" );
 		return -1;
-	} 
+	}
 
 	if ( res->status ) {
 		fprintf( stderr, "nfsprook_lookup error: %s\n", strerror( res->status ) ) ;
@@ -263,9 +266,9 @@ struct timeval tout;
 		xdr_free( (xdrproc_t)xdr_readres, (caddr_t) &res );
 	}
 	return rval;
-		
 
-	
+
+
 }
 
 int
@@ -293,6 +296,73 @@ attrstat *res;
 		return -res->status;
 	}
 	return res->attrstat_u.attributes.size;
+}
+
+int NfsDebug::null()
+{
+	if ( ! nfsproc_null_2( 0, nfsClnt_.get() ) ) {
+		clnt_perror( nfsClnt_.get(), "nfsproc_null_2 failed");
+		return -1;
+	}
+	return 0;
+}
+
+
+/* glibc has a strange 'feature'. XIDs are incremented (by clntudp_call)
+ * assuming network- == host- byte order (i.e., ++xid instead of
+ * htonl( ntohl( xid ) + 1 ) ). However, CLSET_XID and CLGET_XID pre-decrement/
+ * post-increment the XID in *host* byte order, i.e.,
+ *
+ * CLSET_XID does  xid = htonl( user_xid - 1 )
+ */
+void
+NfsDebug::checkAndSetXidMode()
+{
+unsigned long xid0, xid1, xid2;
+
+	xid0 = getNfsXid();
+
+	null();
+
+	xid1 = getNfsXid();
+
+	if ( xid1 == xid0 + 1 ) {
+		xidIncMode_ = XID_HOST_BYTE_ORDER_INC;
+		fprintf( stderr, "RPC library/cpu increments XID in host-byte order\n" );
+	} else if ( xid1 == xid0 - 1 ) {
+		xidIncMode_ = XID_HOST_BYTE_ORDER_DEC;
+		fprintf( stderr, "RPC library/cpu decrements XID in host-byte order\n" );
+	} else if ( htonl( xid1 ) == htonl( xid0 ) + 1 ) {
+		xidIncMode_ = XID_NET_BYTE_ORDER_INC;
+		fprintf( stderr, "RPC library/cpu increments XID in network-byte order\n" );
+	} else if ( htonl( xid1 ) == htonl( xid0 ) - 1 ) {
+		xidIncMode_ = XID_NET_BYTE_ORDER_DEC;
+		fprintf( stderr, "RPC library/cpu decrements XID in network-byte order\n" );
+	} else {
+		fprintf( stderr, "ERROR: Unrecognized XID incrementing; previous: 0x%lx, this: 0x%0lx\n", xid0, xid1 );
+		throw "RPC Library increments XID in unsupported/unknown way";
+	}
+
+	setNfsXidRaw( xid1 + 1 );
+
+	xid2 = getNfsXid();
+
+	if ( xid2 == xid1 ) {
+		xidSetMode_ = XID_PRE_DEC;
+		fprintf( stderr, "RPC library/cpu CLSET_XID pre-decrements XID\n" );
+	} else if ( xid2 == xid1 + 1 ) {
+		fprintf( stderr, "RPC library/cpu CLSET_XID sets XID\n" );
+		xidSetMode_ = XID_PRE_NONE;
+		setNfsXidRaw( xid1 );
+	} else if ( xid2 == xid1 + 2 ) {
+		fprintf( stderr, "RPC library/cpu CLSET_XID pre-increments XID\n" );
+		xidSetMode_ = XID_PRE_INC;
+		setNfsXidRaw( xid1 );
+	} else {
+		fprintf( stderr, "ERROR: Unrecognized CLSET_XID method; set: 0x%lx, readback: 0x%0lx\n", xid1 + 1, xid2 );
+		throw "RPC Library sets XID in unsupported/unknown way";
+	}
+
 }
 
 void
@@ -334,18 +404,60 @@ unsigned long tmp;
 		fprintf( stderr, "clnt_control(CLGET_XID) failed" );
 		return 0;
 	}
-	rval = (uint32_t)tmp;
+	rval = (uint32_t) tmp;
 	return rval;
 }
 
 void
-NfsDebug::setNfsXid(uint32_t xid)
+NfsDebug::setNfsXidRaw(uint32_t xid)
 {
 unsigned long tmp = xid;
 	if ( ! clnt_control( nfsClnt_.get(), CLSET_XID, (caddr_t)&tmp ) ) {
 		fprintf( stderr, "clnt_control(CLSET_XID) failed" );
 	}
 }
+
+void
+NfsDebug::setNfsXid(uint32_t xid)
+{
+	/* This all assumes clnt_call *pre*-increments or -decrements the XID,
+	 * i.e., *before* sending the request. SUN-RPC does pre-increment (UDP)
+	 * or pre-decrement (TCP).
+	 *
+	 * CLSET_XID attempts to compensate for this operation by pre-decrementing
+	 * the user supplied XID but
+	 *   - TCP *decrements* -> CLSET_XID should increment in order to compensate
+	 *   - CLSET_XID's compensation operation is done on the XID in host byte
+	 *     order whereas clnt_call() operates on the xid in network byte order.
+	 */
+	if ( XID_PRE_NONE != xidSetMode_ ) {
+		switch ( xidIncMode_ ) {
+			case XID_HOST_BYTE_ORDER_INC:
+				xid -= 1;
+			break;
+
+			case XID_HOST_BYTE_ORDER_DEC:
+				xid += 1;
+			break;
+
+			case XID_NET_BYTE_ORDER_INC:
+				xid  = ntohl( htonl( xid ) - 1 );
+			break;
+
+			case XID_NET_BYTE_ORDER_DEC:
+				xid  = ntohl( htonl( xid ) + 1 );
+			break;
+		}
+		if ( XID_PRE_INC == xidSetMode_ ) {
+			xid -= 1;
+		} else { // XID_PRE_DEC
+			xid += 1;
+		}
+	}
+
+	setNfsXidRaw( xid );
+}
+
 
 int
 NfsDebug::rm(diropargs *arg)
@@ -438,7 +550,7 @@ attrstat      *res;
     *attrs = res->attrstat_u.attributes;
     return 0;
 }
-	
+
 int
 NfsDebug::creat(diropargs *where, nfs_fh *newfh, sattr *attrs)
 {
